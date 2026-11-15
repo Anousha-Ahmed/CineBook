@@ -3,7 +3,7 @@
 @php
     $poster = $movie->poster_url;
     $genre = $movie->genres->first()->name ?? 'Feature';
-    $nextShow = $movie->next_showtime ?? null;
+    $nextShow = $movie->next_showtime_at ?? null;
 @endphp
 
 <a href="{{ route('movies.show', $movie) }}" class="group block">
@@ -25,7 +25,7 @@
 
         @if ($nextShow)
             <span class="absolute inset-x-3 bottom-3 rounded-lg bg-brand-600/90 px-2.5 py-1.5 text-center text-[11px] font-semibold text-white opacity-0 backdrop-blur transition group-hover:opacity-100">
-                Next show {{ $nextShow->start_time->format('g:i A') }}
+                Next show {{ \Illuminate\Support\Carbon::parse($nextShow)->format('D, g:i A') }}
             </span>
         @endif
     </div>

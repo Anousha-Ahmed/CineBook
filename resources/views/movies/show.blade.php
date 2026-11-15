@@ -42,16 +42,33 @@
 
                     <p class="mt-6 text-sm leading-relaxed text-slate-300 sm:text-base">{{ $movie->synopsis }}</p>
 
-                    <dl class="mt-8 grid max-w-md grid-cols-2 gap-4 border-t border-white/[.07] pt-6 text-sm">
-                        <div>
-                            <dt class="text-xs uppercase tracking-widest text-slate-500">Standard seat</dt>
-                            <dd class="mt-1 font-display text-lg font-semibold text-white">{{ PricingService::format(1000) }}</dd>
+                    @php
+                        $trailerEmbed = $movie->trailerEmbedUrl();
+                    @endphp
+
+                    @if ($trailerEmbed)
+                        <div class="mt-6 aspect-video overflow-hidden rounded-2xl border border-white/10 bg-night-800">
+                            <iframe src="{{ $trailerEmbed }}" title="{{ $movie->title }} trailer" class="h-full w-full" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                         </div>
-                        <div>
-                            <dt class="text-xs uppercase tracking-widest text-slate-500">Premium seat</dt>
-                            <dd class="mt-1 font-display text-lg font-semibold text-white">{{ PricingService::format(1000 + PricingService::premiumSurchargeCents()) }}</dd>
-                        </div>
-                    </dl>
+                    @elseif ($movie->trailer_url)
+                        <a href="{{ $movie->trailer_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm mt-6">
+                            Watch trailer
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4 10 14M20 14v6H4V4h6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        </a>
+                    @endif
+
+                    @if ($fromCents)
+                        <dl class="mt-8 grid max-w-md grid-cols-2 gap-4 border-t border-white/[.07] pt-6 text-sm">
+                            <div>
+                                <dt class="text-xs uppercase tracking-widest text-slate-500">Standard seat from</dt>
+                                <dd class="mt-1 font-display text-lg font-semibold text-white">{{ PricingService::format($fromCents) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-xs uppercase tracking-widest text-slate-500">Premium seat from</dt>
+                                <dd class="mt-1 font-display text-lg font-semibold text-white">{{ PricingService::format($fromCents + PricingService::premiumSurchargeCents()) }}</dd>
+                            </div>
+                        </dl>
+                    @endif
 
                     <div class="mt-8 flex flex-wrap gap-3">
                         @if ($byDate->isNotEmpty())

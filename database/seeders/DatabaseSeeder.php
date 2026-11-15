@@ -63,7 +63,10 @@ class DatabaseSeeder extends Seeder
         $rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
         foreach (['Screen 1', 'Screen 2'] as $name) {
-            $screen = Screen::firstOrCreate(['name' => $name]);
+            $screen = Screen::updateOrCreate(
+                ['name' => $name],
+                ['rows' => count($rows), 'seats_per_row' => 12, 'premium_rows' => 2],
+            );
             $screens[] = $screen;
 
             foreach ($rows as $row) {
@@ -201,19 +204,20 @@ class DatabaseSeeder extends Seeder
 
         $comingSoon = ['Avatar: Fire and Ash', 'Wicked: For Good'];
 
-        $playing = Movie::whereNotIn('title', $comingSoon)->orderBy('id')->get();
+        $playing = Movie::whereNotIn('title', $comingSoon)->orderBy('id')->get()->values();
 
+        // Four-hour slots keep every seeded film inside its slot (longest is 201 minutes),
+        // so two showtimes never overlap on the same screen.
         $times = [
-            [14, 30, 1000],
-            [18, 30, 1200],
-            [21, 30, 1000],
+            [12, 0, 1000],
+            [16, 0, 1200],
+            [20, 0, 1000],
         ];
 
-        foreach ($playing as $index => $movie) {
-            $screen = $screens[$index % count($screens)];
-
-            foreach (range(0, 6) as $dayOffset) {
-                foreach ($times as [$hour, $minute, $price]) {
+        foreach (range(0, 6) as $dayOffset) {
+            foreach ($screens as $screenIndex => $screen) {
+                foreach ($times as $slot => [$hour, $minute, $price]) {
+                    $movie = $playing[($dayOffset + $screenIndex * 2 + $slot) % $playing->count()];
                     $start = Carbon::today()->addDays($dayOffset)->setTime($hour, $minute);
 
                     if ($start->isPast()) {

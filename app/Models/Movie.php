@@ -12,6 +12,7 @@ class Movie extends Model
         'duration_minutes',
         'rating',
         'poster_url',
+        'trailer_url',
         'is_featured',
     ];
 
@@ -57,5 +58,21 @@ class Movie extends Model
                     ->orWhere('synopsis', 'like', "%{$term}%");
             });
         });
+    }
+
+    public function trailerEmbedUrl(): ?string
+    {
+        $url = $this->trailer_url;
+
+        if (! $url) {
+            return null;
+        }
+
+        if (preg_match('~youtu\.be/([\w-]+)~', $url, $match)
+            || preg_match('~youtube\.com/watch\?v=([\w-]+)~', $url, $match)) {
+            return 'https://www.youtube-nocookie.com/embed/'.$match[1];
+        }
+
+        return str_contains($url, 'youtube.com/embed/') ? $url : null;
     }
 }

@@ -53,6 +53,7 @@ class HomeController extends Controller
         }
 
         $seatCounts = Seat::query()
+            ->where('is_disabled', false)
             ->selectRaw('screen_id, count(*) as total')
             ->groupBy('screen_id')
             ->pluck('total', 'screen_id');
@@ -110,11 +111,14 @@ class HomeController extends Controller
         $byDate = $showtimes->groupBy(fn ($s) => $s->start_time->toDateString());
 
         $seatCounts = Seat::query()
+            ->where('is_disabled', false)
             ->selectRaw('screen_id, count(*) as total')
             ->groupBy('screen_id')
             ->pluck('total', 'screen_id');
 
         $taken = $this->takenSeatCounts($showtimes->pluck('id')->all());
+
+        $fromCents = $showtimes->min('base_price_cents');
 
         $related = Movie::with('genres')
             ->whereKeyNot($movie->id)
@@ -128,7 +132,7 @@ class HomeController extends Controller
             )->unique('id')->take(5);
         }
 
-        return view('movies.show', compact('movie', 'byDate', 'seatCounts', 'taken', 'related'));
+        return view('movies.show', compact('movie', 'byDate', 'seatCounts', 'taken', 'related', 'fromCents'));
     }
 
     private function takenSeatCounts(array $showtimeIds): array
