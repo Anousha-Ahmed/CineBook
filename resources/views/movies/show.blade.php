@@ -6,10 +6,10 @@
 <x-layouts.public :title="$movie->title . ' — CineBook'">
     <div class="relative isolate overflow-hidden border-b border-white/[.06]">
         <div class="absolute inset-0 -z-10">
-            @if ($movie->poster_url)
-                <img src="{{ $movie->poster_url }}" alt="" class="h-full w-full object-cover object-top opacity-25" aria-hidden="true">
+            @if ($movie->backdrop_url ?: $movie->poster_url)
+                <img src="{{ $movie->backdrop_url ?: $movie->poster_url }}" alt="" class="h-full w-full object-cover object-center opacity-40" aria-hidden="true">
             @endif
-            <div class="absolute inset-0 bg-gradient-to-r from-night-950 via-night-950/90 to-night-950/60"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-night-950 via-night-950/85 to-night-950/55"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-night-950 to-transparent"></div>
         </div>
 

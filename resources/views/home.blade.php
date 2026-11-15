@@ -8,20 +8,29 @@
     @if ($heroMovie)
         <section class="relative isolate overflow-hidden">
             <div class="absolute inset-0 -z-10">
-                @if ($heroMovie->poster_url)
-                    <img src="{{ $heroMovie->poster_url }}" alt="" class="h-full w-full object-cover object-top opacity-40" aria-hidden="true">
+                @if ($heroMovie->backdrop_url || $heroMovie->poster_url)
+                    <img src="{{ $heroMovie->backdrop_url ?: $heroMovie->poster_url }}" alt="" class="h-full w-full object-cover object-center" fetchpriority="high" aria-hidden="true">
                 @endif
-                <div class="absolute inset-0 bg-gradient-to-r from-night-950 via-night-950/85 to-night-950/30"></div>
-                <div class="absolute inset-0 bg-gradient-to-t from-night-950 via-night-950/40 to-transparent"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-night-950 via-night-950/80 to-night-950/15"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-night-950 via-night-950/10 to-night-950/30"></div>
             </div>
+            <div class="pointer-events-none absolute -left-40 top-1/4 -z-10 h-96 w-96 rounded-full bg-brand-600/25 blur-3xl" aria-hidden="true"></div>
 
             <div class="mx-auto max-w-7xl px-4 pb-16 pt-20 sm:px-6 sm:pt-28 lg:px-8 lg:pb-24 lg:pt-36">
                 <div class="max-w-2xl animate-fade-up">
-                    <p class="eyebrow">Now showing &middot; CineBook Downtown</p>
+                    <p class="eyebrow flex items-center gap-2.5">
+                        <span class="relative flex h-2 w-2">
+                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-70"></span>
+                            <span class="relative inline-flex h-2 w-2 rounded-full bg-brand-400"></span>
+                        </span>
+                        Now showing &middot; CineBook Downtown
+                    </p>
 
-                    <h1 class="mt-4 font-display text-4xl font-semibold leading-[1.05] tracking-tight text-white text-balance sm:text-5xl lg:text-6xl">
+                    <h1 class="mt-5 font-display text-5xl font-semibold leading-[1.02] tracking-tight text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.65)] text-balance sm:text-6xl lg:text-7xl">
                         {{ $heroMovie->title }}
                     </h1>
+
+                    <div class="mt-6 h-px w-24 bg-gradient-to-r from-brand-500/80 to-transparent"></div>
 
                     <div class="mt-5 flex flex-wrap items-center gap-2">
                         <span class="chip border-brand-500/25 bg-brand-500/10 text-brand-300">{{ $heroMovie->rating }}</span>
@@ -30,7 +39,10 @@
                             <span class="chip">{{ $genre->name }}</span>
                         @endforeach
                         @if ($heroMovie->next_showtime_at)
-                            <span class="chip">Next show {{ Carbon::parse($heroMovie->next_showtime_at)->format('D, g:i A') }}</span>
+                            <span class="chip border-white/20 bg-white/[.07] text-white">
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                                Next show {{ Carbon::parse($heroMovie->next_showtime_at)->format('D, g:i A') }}
+                            </span>
                         @endif
                     </div>
 
@@ -45,6 +57,17 @@
                         </a>
                         <a href="#whats-on" class="btn btn-ghost">Browse today's schedule</a>
                     </div>
+
+                    <p class="mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-400">
+                        <span>Standard {{ PricingService::format(1000) }}</span>
+                        <span class="text-slate-600">·</span>
+                        <span>Premium {{ PricingService::format(1000 + PricingService::premiumSurchargeCents()) }}</span>
+                        <span class="text-slate-600">·</span>
+                        <span class="inline-flex items-center gap-1.5">
+                            <svg class="h-3.5 w-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5 5L20 6.5" /></svg>
+                            Free cancellation up to 2 hours before showtime
+                        </span>
+                    </p>
                 </div>
             </div>
         </section>

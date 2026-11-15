@@ -12,6 +12,7 @@ class Movie extends Model
         'duration_minutes',
         'rating',
         'poster_url',
+        'backdrop_url',
         'trailer_url',
         'is_featured',
     ];
