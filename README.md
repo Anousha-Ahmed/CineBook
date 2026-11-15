@@ -1,22 +1,26 @@
 # CineBook
 
-A cinema ticketing web application built with Laravel 12 and Blade. Customers browse movies, pick seats on a live seat map, pay through Stripe Checkout, and receive QR tickets. Staff scan QR codes at the door. Admins manage the catalogue, showtimes, screenings, customers, refunds and reports.
+A single-cinema movie reservation system built with **Laravel 12**, Blade and MySQL 8. Customers hold seats and pay through Stripe Checkout (test mode), bookings are confirmed only by a signed Stripe webhook, and each confirmed seat gets a QR ticket. Staff scan tickets at the entrance; admins manage the cinema, refunds and reports.
 
-The interface uses a custom dark "midnight cinema" theme (Tailwind + Alpine.js) built from the Cinebook Figma design.
+## Demo accounts
 
----
+`php artisan migrate --seed` creates these verified accounts (password: `password`):
 
-## 1. Requirements
+| Role | Email | Start page |
+| --- | --- | --- |
+| Customer | `customer@cinebook.com` | `/` |
+| Staff | `staff@cinebook.com` | `/staff/scan` |
+| Admin | `admin@cinebook.com` | `/admin` |
 
-| Tool | Version |
-| --- | --- |
-| PHP | 8.2 or newer (extensions: `pdo_mysql`, `openssl`, `mbstring`, `fileinfo`, `gd`, `curl`, `zip`, and `pdo_sqlite` for the test suite) |
-| Composer | 2.x |
-| Node.js | 20 or newer |
-| MySQL | 8.x |
-| Stripe | Test-mode account (sandbox) + Stripe CLI for local webhooks |
+## Requirements
 
-## 2. Installation
+- PHP 8.5 with `pdo_mysql`, `openssl`, `mbstring`, `fileinfo`, `gd`, `curl`, `zip` (and `pdo_sqlite` for tests)
+- Composer 2, Node.js 20+, MySQL 8
+- A Stripe test-mode account and the Stripe CLI
+
+> `composer.json` allows PHP `^8.2`, but `composer.lock` pins `endroid/qr-code 6.2.0` (PHP `^8.5`) and Symfony 8 packages (PHP 8.4.1+). On older PHP run `composer config platform.php 8.2.0 && composer update` and commit the new lock file.
+
+## Setup
 
 ```bash
 composer install
@@ -25,7 +29,7 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Create an empty MySQL database named `cinebook`, then point `.env` at it:
+Create an empty MySQL database named `cinebook` and set these in `.env` (the example file defaults to SQLite):
 
 ```dotenv
 DB_CONNECTION=mysql
@@ -36,176 +40,107 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-Then:
-
 ```bash
 php artisan migrate --seed
 php artisan storage:link
 npm run build
 ```
 
-`migrate --seed` creates three verified demo accounts (password: `password`):
-
-| Role | Email | Entry point |
-| --- | --- | --- |
-| Customer | `customer@cinebook.com` | `/` and `/bookings` |
-| Staff | `staff@cinebook.com` | `/staff/scan` |
-| Admin | `admin@cinebook.com` | `/admin` |
-
-## 3. Environment checklist
+## Environment checklist
 
 | Key | Purpose |
 | --- | --- |
-| `APP_URL` | Base URL used in mails and signed links (e.g. `http://127.0.0.1:8000`) |
+| `APP_URL` | Base URL, e.g. `http://127.0.0.1:8000` |
 | `DB_*` | MySQL connection |
-| `QUEUE_CONNECTION=database` | Booking emails and refunds run on the queue |
-| `MAIL_MAILER` | `log` for development (mail appears in `storage/logs/laravel.log`), SMTP for a real inbox |
-| `STRIPE_KEY` / `STRIPE_SECRET` | Stripe sandbox API keys (`pk_test_...`, `sk_test_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Signing secret printed by `stripe listen` (`whsec_...`) |
-| `PAYMENT_GATEWAY` | `stripe` for the real sandbox flow, `fake` for offline demos |
+| `QUEUE_CONNECTION=database` | Mail and refunds are queued |
+| `MAIL_MAILER` | `log` (mail goes to `storage/logs/laravel.log`) or SMTP |
+| `STRIPE_KEY`, `STRIPE_SECRET` | Stripe test keys (`pk_test_...`, `sk_test_...`) |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` printed by `stripe listen` |
+| `PAYMENT_GATEWAY` | `stripe`, or `fake` for offline demos |
 
-Secrets belong only in `.env`. `.env` is git-ignored, and `.env.example` ships with empty values.
+Secrets live only in `.env`, which is git-ignored. Never commit keys or log full ticket tokens.
 
-## 4. Running the app
-
-Use four terminals while developing:
+## Running
 
 ```bash
-# 1. Web server
-php artisan serve
-
-# 2. Vite (hot reload of CSS/JS)
-npm run dev
-
-# 3. Queue worker (ticket mails, verification mails, refunds)
-php artisan queue:work
-
-# 4. Scheduler (expires unpaid bookings and stale seat holds every minute)
-php artisan schedule:work
+php artisan serve            # web server
+npm run dev                  # Vite (only while editing CSS/JS)
+php artisan queue:work       # mail and refund jobs
+php artisan schedule:work    # runs bookings:expire every minute
 ```
 
-In production the scheduler is a single cron entry:
+Mail and refund jobs make 4 attempts (the first try plus 3 retries, backed off 1, 5 and 15 minutes) and then land in `failed_jobs`; the admin "Failed Jobs" page can retry or delete them. In production, use a cron entry for the scheduler and Supervisor for the worker:
 
 ```cron
 * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Run `php artisan queue:work` under Supervisor (or `queue:listen` while developing) so queued mails are delivered. Failed jobs are listed at `/admin/failed-jobs`, where an admin can retry or delete them.
+## Stripe sandbox
 
-## 5. Stripe sandbox setup
-
-1. Put the test keys in `.env`:
-   ```dotenv
-   STRIPE_KEY=pk_test_...
-   STRIPE_SECRET=sk_test_...
-   PAYMENT_GATEWAY=stripe
-   ```
-2. Forward Stripe events to the local app:
+1. Put the test keys in `.env` and set `PAYMENT_GATEWAY=stripe`.
+2. Forward webhooks:
    ```bash
    stripe login
    stripe listen --forward-to http://127.0.0.1:8000/stripe/webhook
    ```
-3. Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET` and restart `php artisan serve`.
-4. Pay with the test card `4242 4242 4242 4242`, any future expiry, any CVC.
+3. Copy the printed `whsec_...` into `STRIPE_WEBHOOK_SECRET` and restart `php artisan serve`.
+4. Pay with card `4242 4242 4242 4242`, any future expiry, any CVC.
 
-A booking is confirmed **only** by the signature-verified `checkout.session.completed` webhook with `payment_status = paid`. The `/checkout/success` page never confirms anything; it only shows "Payment processing" until the webhook lands. Duplicate webhook deliveries are ignored through the unique `stripe_events.event_id`, and a payment that arrives after the seat hold expired is refunded automatically instead of double-booking the seat.
+Without `stripe listen`, bookings stay `pending_payment`: the success page only says "Payment processing" and never confirms a booking.
 
-## 6. Tests
+## How a booking is confirmed
+
+1. The customer holds seats (`SeatHoldService`, one transaction).
+2. Checkout creates a `pending_payment` booking, a payment record and a Stripe Checkout Session. Prices are computed on the server.
+3. Stripe calls `/stripe/webhook`; the signature is verified (invalid returns 400).
+4. In one transaction the booking becomes `confirmed`, one ticket per seat is created with a random 40-character token, and the holds are removed.
+5. The event ID is stored in `stripe_events` (unique), so a replayed event is ignored.
+6. If payment arrives after the hold expired and the seats were taken, the booking is not confirmed; the payment is refunded and the customer is emailed.
+7. A mail failure never changes booking or payment state.
+
+Fixed rules are in `app/Support/BookingRules.php`: sales close 15 minutes before the show; scanning opens 60 minutes before and closes 30 minutes after the start. Hold minutes, max seats, cancellation window and premium surcharge are editable in `/admin/settings`.
+
+## How double booking is prevented
+
+1. Requested seats must belong to the showtime's screen, not be disabled, and the showtime must be on sale.
+2. `SeatHoldService` runs in a transaction and locks the seat rows with `SELECT ... FOR UPDATE`. A hold is all-or-nothing.
+3. Expired holds are deleted inside the hold transaction and never count as held, so a late scheduler does not block new holds.
+4. `seat_holds` has a unique index on `(showtime_id, seat_id)`; if two requests still race, the second insert fails with "Someone just took one of those seats."
+5. Before confirming a webhook, `PaymentService` locks the booking and checks that no other confirmed booking or live hold owns the seats; otherwise it refunds.
+6. A scan runs `UPDATE tickets SET status='used' WHERE id=? AND status='valid'` and checks the affected rows, so two simultaneous scans cannot both succeed.
+
+## Tests
 
 ```bash
 php artisan test
 ```
 
-The suite uses an in-memory SQLite database (`phpunit.xml`) and the `fake` payment gateway, so it needs no MySQL or network access. 40 tests / 97 assertions currently pass.
-
-The six acceptance tests required by the Phase 2 specification:
+Runs on in-memory SQLite with the fake payment gateway; no MySQL or network needed. The six required acceptance tests:
 
 | Requirement | Test |
 | --- | --- |
-| A seat cannot be held twice for the same showtime | `tests/Feature/SeatHoldTest.php` — `test_a_seat_cannot_be_held_twice_for_the_same_showtime` |
-| An expired hold releases the seat | `tests/Feature/SeatHoldTest.php` — `test_an_expired_hold_releases_the_seat` |
-| A webhook confirms a booking exactly once, even if delivered twice | `tests/Feature/PaymentWebhookTest.php` — `test_a_webhook_confirms_a_booking_exactly_once_even_if_delivered_twice` |
-| Cancellation inside the 2-hour window is rejected | `tests/Feature/CancellationTest.php` — `test_cancellation_inside_the_two_hour_window_is_rejected` |
-| A duplicate QR scan is rejected | `tests/Feature/TicketScanTest.php` — `test_a_duplicate_qr_scan_is_rejected` |
-| A customer cannot view another customer's booking | `tests/Feature/BookingAccessTest.php` — `test_a_customer_cannot_view_another_customers_booking` |
+| A seat can't be held twice | `SeatHoldTest::test_a_seat_cannot_be_held_twice_for_the_same_showtime` |
+| An expired hold releases the seat | `SeatHoldTest::test_an_expired_hold_releases_the_seat` |
+| A webhook confirms exactly once | `PaymentWebhookTest::test_a_webhook_confirms_a_booking_exactly_once_even_if_delivered_twice` |
+| Cancellation inside 2 hours is rejected | `CancellationTest::test_cancellation_inside_the_two_hour_window_is_rejected` |
+| A duplicate QR scan is rejected | `TicketScanTest::test_a_duplicate_qr_scan_is_rejected` |
+| A customer can't view another's booking | `BookingAccessTest::test_a_customer_cannot_view_another_customers_booking` |
 
-Additional coverage: invalid webhook signature, sales closing 15 minutes before a showtime, refunds outside the window, scanned tickets blocking cancellation, wrong-showtime scans, scans before the entry window, and ticket ownership.
+## Backup and restore
 
-> Windows note: the suite needs `extension=pdo_sqlite` enabled in `php.ini`.
-
-## 7. Business rules
-
-Fixed rules live in `app/Support/BookingRules.php`:
-
-| Rule | Value |
-| --- | --- |
-| Online sales close before a showtime | 15 minutes |
-| QR scanning opens before a showtime | 60 minutes |
-| QR scanning closes after a showtime | 30 minutes |
-| Self-service cancellation cutoff | 2 hours (configurable setting) |
-
-Editable settings (`/admin/settings`): seat-hold duration, maximum seats per booking, cancellation cutoff, premium-seat surcharge and currency. Seat prices are computed server-side by `PricingService`; the browser never sends prices.
-
-## 8. How double booking is prevented
-
-1. **Validation** — requested seats must belong to the showtime's screen, must not be disabled, and the showtime must still be on sale.
-2. **Transaction + row locks** — `SeatHoldService` runs inside a database transaction and locks the requested seat rows with `SELECT ... FOR UPDATE`.
-3. **Expired holds are purged first** — expired rows are deleted inside the same transaction, so the scheduler is not required for correctness.
-4. **Database uniqueness** — `seat_holds` has a unique index on `(showtime_id, seat_id)`. If two requests still race, the second insert throws, and the service converts the constraint error into "Someone just took one of those seats."
-5. **Confirmation check** — before confirming a webhook, `PaymentService` verifies that no other confirmed booking or live hold owns those seats. If the hold expired while the customer was paying, the payment is refunded and the booking is marked `refunded`.
-6. **Atomic admission** — a scan is `UPDATE tickets SET status = 'used' WHERE id = ? AND status = 'valid'`. The row count decides whether the holder is admitted, so the same QR cannot be used twice.
-
-## 9. Security notes
-
-- CSRF protection is enabled on every form; Stripe is the only route excluded, and it is authenticated by its signature instead.
-- All user data is output through Blade escaping. Queries are built with the query builder/Eloquent (bound parameters), never by string concatenation.
-- Route groups are protected by `auth`, `verified` and `role:staff,admin` / `role:admin` middleware. Controllers additionally check ownership (a customer can only reach their own bookings and tickets).
-- The QR code contains a random 40-character opaque token, never a URL and never personal data.
-- Card numbers never touch the application: payment happens on Stripe's hosted Checkout page. Logs contain event types only, never secrets or tokens.
-- Audit entries (`audit_logs`) record actor, action, target, before/after values and IP for sensitive admin actions.
-
-## 10. Project map
-
-```
-app/
-  Console/Commands/ExpireStaleBookings.php   scheduler: expire holds + unpaid bookings
-  Contracts/PaymentGateway.php               gateway abstraction
-  Http/Controllers/                          public, customer, staff and Admin/* controllers
-  Jobs/RefundBookingJob.php                  retried, idempotent refunds
-  Services/                                  PaymentService, SeatHoldService, PricingService,
-                                             RefundService, TicketScanService, SettingsService,
-                                             Payments/StripeGateway, Payments/FakeGateway
-  Support/BookingRules.php                   fixed time-window constants
-resources/views/
-  components/layouts/                        public / admin / app shells
-  admin/                                     admin screens
-  staff/scan.blade.php                       scanner
-  booking/, checkout/, tickets/, bookings/   customer journey
-tests/Feature/                               acceptance + regression tests
-```
-
-## 11. Troubleshooting
-
-- **419 Page Expired** — refresh the page; the CSRF token rotates after login.
-- **Webhook returns 400** — the signature did not match. Re-run `stripe listen`, copy the new `whsec_...` into `.env`, and restart the server.
-- **Payment done but booking still pending** — no webhook reached the app. Check `stripe listen`, the queue worker, and `storage/logs/laravel.log`.
-- **Seats stay "held"** — make sure `php artisan schedule:work` (or cron) is running.
-- **No emails** — with `MAIL_MAILER=log` they are written to `storage/logs/laravel.log`; with SMTP, check the credentials and that the queue worker is running.
-- **Posters do not load** — run `php artisan storage:link`.
-
-## 12. Backup notes
-
-Two things hold state that cannot be regenerated from code: the MySQL database and uploaded posters in `storage/app/public`.
+The MySQL database and uploaded posters (`storage/app/public`) cannot be regenerated from code.
 
 ```bash
-# Database (MySQL): one consistent dump
 mysqldump -u root -p --single-transaction --routines cinebook > cinebook-$(date +%F).sql
-
-# Uploaded posters and public files
 tar -czf cinebook-storage-$(date +%F).tar.gz storage/app/public public/storage
 ```
 
-- Run both on the same schedule (a nightly cron entry is enough for this app) and keep them together — a database row without its poster file references a missing image.
-- Restore into an empty database: `mysql -u root -p cinebook < cinebook-YYYY-MM-DD.sql`, then unpack the storage archive.
-- `.env` is not part of a code backup. Store it separately in a password manager, since it carries the Stripe keys, webhook secret and mail credentials.
-- Test a restore into a scratch database periodically; an untested backup is not a backup.
+Run both on the same schedule and keep them together. Restore with `mysql -u root -p cinebook < cinebook-YYYY-MM-DD.sql`, then unpack the storage archive. `.env` is not in the backup; keep it in a password manager. Test a restore into a scratch database now and then.
+
+## Known limitations
+
+- Once a customer clicks Pay, the booking is `pending_payment` and its seats stay unavailable until the scheduler expires it, even after the 10-minute hold ends. Keep `schedule:work` running.
+- After confirmation, "one buyer per seat per showtime" is enforced by application checks and row locks, not by a unique database constraint.
+- Ownership checks are in controllers (no Policy classes), and validation is inline (only the Breeze form requests exist).
+- Customer routes need login and a verified email but are not role-restricted; staff and admin areas are.
+- Partial or tiered refunds (bonus) are not implemented; every refund is 100%.
