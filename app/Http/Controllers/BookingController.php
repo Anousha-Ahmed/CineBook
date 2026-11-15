@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\HoldSeatsRequest;
 use App\Models\Seat;
 use App\Models\SeatHold;
 use App\Models\Showtime;
@@ -50,12 +51,9 @@ class BookingController extends Controller
         ));
     }
 
-    public function holdSeats(Request $request, Showtime $showtime, SeatHoldService $holds)
+    public function holdSeats(HoldSeatsRequest $request, Showtime $showtime, SeatHoldService $holds)
     {
-        $data = $request->validate([
-            'seat_ids' => ['required', 'array', 'min:1'],
-            'seat_ids.*' => ['integer', 'exists:seats,id'],
-        ]);
+        $data = $request->validated();
 
         try {
             $holds->holdSeats(auth()->id(), $showtime->id, $data['seat_ids']);

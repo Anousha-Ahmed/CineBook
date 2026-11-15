@@ -14,8 +14,14 @@ class VerifyEmailController extends Controller
      */
     public function __invoke(EmailVerificationRequest $request): RedirectResponse
     {
+        $home = match ($request->user()->role) {
+            'staff' => route('staff.scan'),
+            'admin' => route('admin.dashboard'),
+            default => route('bookings.index'),
+        };
+
         if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->intended(route('bookings.index'))
+            return redirect()->intended($home)
                 ->with('success', 'Your email is already verified.');
         }
 
@@ -23,7 +29,7 @@ class VerifyEmailController extends Controller
             event(new Verified($request->user()));
         }
 
-        return redirect()->intended(route('bookings.index'))
-            ->with('success', 'Email verified — your account is ready. You can book seats now.');
+        return redirect()->intended($home)
+            ->with('success', 'Email verified — your account is ready.');
     }
 }

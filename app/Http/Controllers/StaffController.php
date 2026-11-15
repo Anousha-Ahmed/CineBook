@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Booking;
 use App\Models\Showtime;
 use App\Models\Ticket;
 use App\Models\TicketScan;
@@ -45,7 +46,16 @@ class StaffController extends Controller
             ->take(12)
             ->get();
 
-        return view('staff.scan', compact('showtimes', 'selected', 'total', 'scanned', 'recent'));
+        $bookings = $selected
+            ? Booking::with(['user', 'seats'])
+                ->where('showtime_id', $selected->id)
+                ->whereIn('status', ['pending_payment', 'confirmed'])
+                ->latest()
+                ->take(50)
+                ->get()
+            : collect();
+
+        return view('staff.scan', compact('showtimes', 'selected', 'total', 'scanned', 'recent', 'bookings'));
     }
 
     public function verify(Request $request, TicketScanService $scanner)

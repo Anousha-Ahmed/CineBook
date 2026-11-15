@@ -152,6 +152,44 @@
         </div>
     </div>
 
+    @if ($selected)
+        <div class="card mt-6 overflow-hidden">
+            <div class="flex items-center justify-between border-b border-white/[.06] px-6 py-4">
+                <h2 class="font-display text-base font-semibold text-white">{{ __('Bookings for this show') }}</h2>
+                <span class="text-xs text-slate-500">{{ __('Read-only') }}</span>
+            </div>
+
+            @if ($bookings->isEmpty())
+                <p class="px-6 py-8 text-center text-sm text-slate-500">{{ __('No bookings for this showtime yet.') }}</p>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-white/[.02] text-xs uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="px-6 py-3 font-medium">{{ __('Booking') }}</th>
+                                <th class="px-6 py-3 font-medium">{{ __('Customer') }}</th>
+                                <th class="px-6 py-3 font-medium">{{ __('Seats') }}</th>
+                                <th class="px-6 py-3 font-medium">{{ __('Status') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-white/[.05]">
+                            @foreach ($bookings as $booking)
+                                <tr>
+                                    <td class="px-6 py-3 font-medium text-slate-200">#{{ $booking->id }}</td>
+                                    <td class="px-6 py-3 text-slate-400">{{ $booking->user?->name ?? '—' }}</td>
+                                    <td class="px-6 py-3 text-slate-400">
+                                        {{ $booking->seats->sortBy('id')->pluck('label')->join(', ') ?: '—' }}
+                                    </td>
+                                    <td class="px-6 py-3"><span class="{{ $booking->statusClasses() }}">{{ $booking->statusLabel() }}</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+    @endif
+
     <script>
         window.addEventListener('load', () => {
             const input = document.getElementById('token');

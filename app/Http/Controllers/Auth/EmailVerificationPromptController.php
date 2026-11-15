@@ -14,9 +14,16 @@ class EmailVerificationPromptController extends Controller
      */
     public function __invoke(Request $request): RedirectResponse|View
     {
-        return $request->user()->hasVerifiedEmail()
-                    ? redirect()->route('bookings.index')
-                        ->with('success', 'Your email is already verified.')
-                    : view('auth.verify-email');
+        if (! $request->user()->hasVerifiedEmail()) {
+            return view('auth.verify-email');
+        }
+
+        $route = match ($request->user()->role) {
+            'staff' => 'staff.scan',
+            'admin' => 'admin.dashboard',
+            default => 'bookings.index',
+        };
+
+        return redirect()->route($route)->with('success', 'Your email is already verified.');
     }
 }

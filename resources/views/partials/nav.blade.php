@@ -1,8 +1,11 @@
 @php
     $links = [
         ['label' => 'Movies', 'route' => 'movies.index', 'active' => request()->routeIs('movies.*')],
-        ['label' => 'My bookings', 'route' => 'bookings.index', 'active' => request()->routeIs('bookings.*')],
     ];
+
+    if (! auth()->check() || auth()->user()->role !== 'staff') {
+        $links[] = ['label' => 'My bookings', 'route' => 'bookings.index', 'active' => request()->routeIs('bookings.*')];
+    }
 @endphp
 
 <header class="sticky top-0 z-40 border-b border-white/[.06] bg-night-950/85 backdrop-blur-xl">
@@ -67,7 +70,9 @@
                             <p class="truncate text-sm font-semibold text-white">{{ auth()->user()->name }}</p>
                             <p class="truncate text-xs text-slate-500">{{ auth()->user()->email }}</p>
                         </div>
-                        <a href="{{ route('bookings.index') }}" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[.05] hover:text-white">My bookings</a>
+                        @if (auth()->user()->role !== 'staff')
+                            <a href="{{ route('bookings.index') }}" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[.05] hover:text-white">My bookings</a>
+                        @endif
                         <a href="{{ route('profile.edit') }}" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[.05] hover:text-white">Profile settings</a>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf

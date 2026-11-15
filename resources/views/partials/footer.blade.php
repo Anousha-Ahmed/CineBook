@@ -14,7 +14,9 @@
             <ul class="mt-4 space-y-2.5 text-sm text-slate-500">
                 <li><a href="{{ route('movies.index') }}" class="transition hover:text-white">All movies</a></li>
                 <li><a href="{{ route('movies.index', ['filter' => 'now-showing']) }}" class="transition hover:text-white">Now showing</a></li>
-                <li><a href="{{ route('bookings.index') }}" class="transition hover:text-white">My bookings</a></li>
+                @if (! auth()->check() || auth()->user()->role !== 'staff')
+                    <li><a href="{{ route('bookings.index') }}" class="transition hover:text-white">My bookings</a></li>
+                @endif
             </ul>
         </div>
 

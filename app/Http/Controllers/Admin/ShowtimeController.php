@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ShowtimeRequest;
 use App\Mail\ShowtimeCancelledMail;
 use App\Models\Movie;
 use App\Models\Screen;
@@ -11,7 +12,6 @@ use App\Services\AuditLogger;
 use App\Services\RefundService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ShowtimeController extends Controller
@@ -41,9 +41,9 @@ class ShowtimeController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(ShowtimeRequest $request)
     {
-        $data = $this->validated($request);
+        $data = $request->validated();
         $this->guardAgainstOverlap($data);
 
         $showtime = Showtime::create($data);
@@ -62,13 +62,13 @@ class ShowtimeController extends Controller
         ]);
     }
 
-    public function update(Request $request, Showtime $showtime)
+    public function update(ShowtimeRequest $request, Showtime $showtime)
     {
         if ($showtime->status === 'cancelled') {
             return back()->with('error', 'A cancelled showtime can no longer be edited.');
         }
 
-        $data = $this->validated($request, $showtime);
+        $data = $request->validated();
 
         if ($data['status'] === 'cancelled') {
             throw ValidationException::withMessages([
@@ -182,20 +182,5 @@ class ShowtimeController extends Controller
                     .' for '.$conflict->movie->title.'.',
             ]);
         }
-    }
-
-    private function validated(Request $request, ?Showtime $showtime = null): array
-    {
-        return $request->validate([
-            'movie_id' => ['required', 'integer', 'exists:movies,id'],
-            'screen_id' => ['required', 'integer', 'exists:screens,id'],
-            'start_time' => array_filter([
-                'required',
-                'date',
-                $showtime ? null : 'after:now',
-            ]),
-            'base_price_cents' => ['required', 'integer', 'min:0', 'max:100000'],
-            'status' => ['required', Rule::in(['scheduled', 'cancelled'])],
-        ]);
     }
 }

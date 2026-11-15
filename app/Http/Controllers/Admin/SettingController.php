@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\SettingsRequest;
 use App\Services\AuditLogger;
 use App\Services\SettingsService;
-use Illuminate\Http\Request;
 
 class SettingController extends Controller
 {
@@ -27,15 +27,9 @@ class SettingController extends Controller
         return view('admin.settings.edit', compact('settings'));
     }
 
-    public function update(Request $request)
+    public function update(SettingsRequest $request)
     {
-        $data = $request->validate([
-            'hold_minutes' => ['required', 'integer', 'min:1', 'max:60'],
-            'max_seats' => ['required', 'integer', 'min:1', 'max:12'],
-            'cancel_cutoff_hours' => ['required', 'integer', 'min:0', 'max:48'],
-            'premium_surcharge_cents' => ['required', 'integer', 'min:0', 'max:10000'],
-            'currency' => ['required', 'string', 'in:usd,eur,gbp,pkr'],
-        ]);
+        $data = $request->validated();
 
         $before = [];
         foreach (array_keys(self::DEFAULTS) as $key) {

@@ -3,13 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ScreenRequest;
 use App\Models\Screen;
 use App\Models\Seat;
 use App\Models\SeatHold;
 use App\Services\AuditLogger;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ScreenController extends Controller
@@ -30,9 +29,9 @@ class ScreenController extends Controller
         return view('admin.screens.form', ['screen' => new Screen()]);
     }
 
-    public function store(Request $request)
+    public function store(ScreenRequest $request)
     {
-        $data = $this->validated($request);
+        $data = $request->validated();
 
         $screen = Screen::create(['name' => $data['name']]);
         $this->buildSeats($screen, $data['rows'], $data['seats_per_row'], $data['premium_rows']);
@@ -49,9 +48,9 @@ class ScreenController extends Controller
         return view('admin.screens.form', compact('screen'));
     }
 
-    public function update(Request $request, Screen $screen)
+    public function update(ScreenRequest $request, Screen $screen)
     {
-        $data = $this->validated($request, $screen);
+        $data = $request->validated();
 
         $layoutChanged = (int) $screen->rows !== $data['rows']
             || (int) $screen->seats_per_row !== $data['seats_per_row']
@@ -63,13 +62,15 @@ class ScreenController extends Controller
             ]);
         }
 
+        $before = $screen->only(['name', 'rows', 'seats_per_row', 'premium_rows']);
+
         $screen->update(['name' => $data['name']]);
 
         if ($layoutChanged) {
             $this->buildSeats($screen, $data['rows'], $data['seats_per_row'], $data['premium_rows']);
         }
 
-        AuditLogger::log('screen.updated', $screen, [], $screen->only(['name', 'rows', 'seats_per_row', 'premium_rows']));
+        AuditLogger::log('screen.updated', $screen, $before, $screen->only(['name', 'rows', 'seats_per_row', 'premium_rows']));
 
         return redirect()->route('admin.screens.edit', $screen)->with('success', 'Screen updated.');
     }
@@ -143,18 +144,6 @@ class ScreenController extends Controller
             'rows' => $rows,
             'seats_per_row' => $perRow,
             'premium_rows' => $premiumRows,
-        ]);
-    }
-
-    private function validated(Request $request, ?Screen $screen = null): array
-    {
-        $maxRows = $screen?->rows ? max(26, (int) $screen->rows) : 26;
-
-        return $request->validate([
-            'name' => ['required', 'string', 'max:80', Rule::unique('screens', 'name')->ignore($screen?->id)],
-            'rows' => ['required', 'integer', 'min:1', 'max:'.$maxRows],
-            'seats_per_row' => ['required', 'integer', 'min:1', 'max:40'],
-            'premium_rows' => ['required', 'integer', 'min:0', 'lte:rows'],
         ]);
     }
 }

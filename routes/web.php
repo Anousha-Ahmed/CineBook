@@ -33,9 +33,28 @@ Route::get('/booking/{showtime}/seats', [BookingController::class, 'showSeats'])
 Route::post('/stripe/webhook', [WebhookController::class, 'handle'])->name('stripe.webhook');
 
 /*
-| Customers
+| Account (any verified role)
 */
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/dashboard', function () {
+        return match (auth()->user()->role) {
+            'staff' => redirect()->route('staff.scan'),
+            'admin' => redirect()->route('admin.dashboard'),
+            default => redirect()->route('bookings.index'),
+        };
+    })->name('dashboard');
+
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+});
+
+/*
+| Customers (staff are read-only and never book)
+*/
+Route::middleware(['auth', 'verified', 'role:customer,admin'])->group(function () {
     Route::post('/booking/{showtime}/hold', [BookingController::class, 'holdSeats'])
         ->middleware('throttle:20,1')
         ->name('booking.hold');
@@ -52,14 +71,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/bookings', [BookingHistoryController::class, 'index'])->name('bookings.index');
     Route::get('/bookings/{booking}', [BookingHistoryController::class, 'show'])->name('bookings.show');
     Route::post('/bookings/{booking}/cancel', [BookingHistoryController::class, 'cancel'])->name('bookings.cancel');
-
-    Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
-
-    Route::get('/dashboard', fn () => redirect()->route('bookings.index'))->name('dashboard');
-
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 /*

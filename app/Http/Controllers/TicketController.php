@@ -10,9 +10,7 @@ class TicketController extends Controller
     {
         $ticket->load(['booking.showtime.movie', 'booking.showtime.screen', 'seat']);
 
-        $isOwner = $ticket->booking->user_id === auth()->id();
-
-        abort_unless($isOwner || auth()->user()->isStaff(), 403);
+        $this->authorize('view', $ticket);
 
         return view('tickets.show', compact('ticket'));
     }

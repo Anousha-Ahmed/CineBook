@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\UserRoleRequest;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
 {
@@ -27,11 +27,9 @@ class CustomerController extends Controller
         return view('admin.customers.index', compact('users'));
     }
 
-    public function update(Request $request, User $user)
+    public function update(UserRoleRequest $request, User $user)
     {
-        $data = $request->validate([
-            'role' => ['required', Rule::in(['customer', 'staff', 'admin'])],
-        ]);
+        $data = $request->validated();
 
         if ($user->id === auth()->id() && $data['role'] !== 'admin') {
             return back()->with('error', 'You cannot remove your own admin access.');

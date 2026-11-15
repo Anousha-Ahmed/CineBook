@@ -34,7 +34,7 @@ class BookingHistoryController extends Controller
 
     public function show(Booking $booking)
     {
-        abort_unless($booking->user_id === auth()->id(), 403);
+        $this->authorize('view', $booking);
 
         $booking->load(['showtime.movie', 'showtime.screen', 'seats', 'tickets.seat', 'payment']);
 
@@ -43,7 +43,7 @@ class BookingHistoryController extends Controller
 
     public function cancel(Booking $booking, RefundService $refunds)
     {
-        abort_unless($booking->user_id === auth()->id(), 403);
+        $this->authorize('cancel', $booking);
 
         if ($booking->hasUsedTickets()) {
             return back()->with('error', 'Tickets from this booking have already been scanned and cannot be cancelled.');
