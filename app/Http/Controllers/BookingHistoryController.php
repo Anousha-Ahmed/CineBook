@@ -14,7 +14,7 @@ class BookingHistoryController extends Controller
         $tab = $request->query('tab') === 'past' ? 'past' : 'upcoming';
 
         $query = auth()->user()->bookings()
-            ->with(['showtime.movie', 'showtime.screen', 'tickets', 'seats'])
+            ->with(['showtime.movie', 'showtime.screen', 'tickets.seat', 'seats', 'payment'])
             ->latest();
 
         if ($tab === 'upcoming') {

@@ -24,16 +24,25 @@
             <div class="space-y-6">
                 <div class="card p-5">
                     <h2 class="text-sm font-semibold text-white">Seats</h2>
+                    @php
+                        $seatList = $booking->seats->isNotEmpty()
+                            ? $booking->seats->sortBy('row')
+                            : $booking->tickets->map->seat->filter()->sortBy('row');
+                    @endphp
                     <div class="mt-3 flex flex-wrap gap-2">
-                        @foreach ($booking->seats->sortBy('row') as $seat)
+                        @foreach ($seatList as $seat)
                             <span class="flex h-10 min-w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[.03] px-2 text-xs font-bold text-white">
                                 {{ $seat->label }}
                             </span>
                         @endforeach
                     </div>
                     <p class="mt-3 text-xs text-slate-500">
-                        {{ $booking->seats->where('is_premium', true)->count() }} premium &middot;
-                        {{ $booking->seats->where('is_premium', false)->count() }} standard
+                        @if ($seatList->isEmpty())
+                            Seats were released.
+                        @else
+                            {{ $seatList->where('is_premium', true)->count() }} premium &middot;
+                            {{ $seatList->where('is_premium', false)->count() }} standard
+                        @endif
                     </p>
                 </div>
 
@@ -56,7 +65,9 @@
                                     </div>
                                 </div>
 
-                                <a href="{{ route('tickets.show', $ticket->token) }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Open QR &rarr;</a>
+                                @if ($ticket->status !== 'void')
+                                    <a href="{{ route('tickets.show', $ticket->token) }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Open QR &rarr;</a>
+                                @endif
                             </div>
                         @empty
                             <p class="text-sm text-slate-500">Tickets are issued once payment is confirmed.</p>
@@ -82,6 +93,20 @@
                             <dt>Status</dt>
                             <dd class="capitalize">{{ $booking->payment->status ?? 'pending' }}</dd>
                         </div>
+                        @if ($booking->payment && in_array($booking->payment->refund_status, ['pending', 'succeeded', 'failed'], true))
+                            <div class="flex justify-between text-slate-400">
+                                <dt>Refund</dt>
+                                <dd class="capitalize {{ match ($booking->payment->refund_status) {
+                                    'succeeded' => 'text-emerald-400',
+                                    'failed' => 'text-red-300',
+                                    default => 'text-amber-300',
+                                } }}">
+                                    {{ $booking->payment->refund_status === 'succeeded'
+                                        ? 'Refunded ' . PricingService::format($booking->payment->refunded_amount_cents)
+                                        : ucfirst($booking->payment->refund_status) }}
+                                </dd>
+                            </div>
+                        @endif
                         <div class="flex justify-between text-slate-400">
                             <dt>Booked on</dt>
                             <dd>{{ $booking->created_at->format('j M Y') }}</dd>

@@ -41,6 +41,9 @@
                 @foreach ($bookings as $booking)
                     @php
                         $showtime = $booking->showtime;
+                        $seatList = $booking->seats->isNotEmpty()
+                            ? $booking->seats->sortBy('row')
+                            : $booking->tickets->map->seat->filter()->sortBy('row');
                     @endphp
                     <div class="card card-hover flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-5">
                         <a href="{{ route('bookings.show', $booking) }}" class="block h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-night-800">
@@ -61,14 +64,25 @@
                                 {{ $showtime->start_time->format('D j M Y, g:i A') }} &middot; {{ $showtime->screen->name }}
                             </p>
                             <p class="mt-1 text-xs text-slate-500">
-                                Order #{{ str_pad($booking->id, 5, '0', STR_PAD_LEFT) }} &middot;
-                                {{ $booking->seats->count() }} {{ \Illuminate\Support\Str::plural('seat', $booking->seats->count()) }} &middot;
-                                {{ $booking->seats->sortBy('row')->map(fn ($s) => $s->label)->implode(', ') }}
+                                Order #{{ str_pad($booking->id, 5, '0', STR_PAD_LEFT) }}
+                                @if ($seatList->isNotEmpty())
+                                    &middot; {{ $seatList->count() }} {{ \Illuminate\Support\Str::plural('seat', $seatList->count()) }} &middot;
+                                    {{ $seatList->map->label->implode(', ') }}
+                                @endif
                             </p>
                         </div>
 
                         <div class="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-                            <span class="font-display text-lg font-semibold text-white">{{ PricingService::format($booking->total_amount_cents) }}</span>
+                            <div class="text-right">
+                                <span class="font-display text-lg font-semibold text-white">{{ PricingService::format($booking->total_amount_cents) }}</span>
+                                @if ($booking->payment?->refund_status === 'succeeded')
+                                    <p class="text-[11px] font-medium text-emerald-400">Refunded {{ PricingService::format($booking->payment->refunded_amount_cents) }}</p>
+                                @elseif ($booking->payment?->refund_status === 'pending')
+                                    <p class="text-[11px] font-medium text-amber-300">Refund processing</p>
+                                @elseif ($booking->payment?->refund_status === 'failed')
+                                    <p class="text-[11px] font-medium text-red-300">Refund failed &mdash; contact us</p>
+                                @endif
+                            </div>
 
                             <div class="flex items-center gap-2">
                                 @if ($booking->isConfirmed() && $booking->tickets->isNotEmpty())

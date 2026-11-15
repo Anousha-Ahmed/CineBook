@@ -46,14 +46,15 @@
                 </div>
             </div>
 
-            <div class="border-t border-white/[.06] bg-white/[.02] px-6 py-4 text-center text-[11px] leading-relaxed text-slate-500">
-                Present this code at the door. Scanning opens 30 minutes before the show and closes
-                {{ \App\Services\SettingsService::get('scan_close_minutes', 30) }} minutes after the start time.
+            <div class="border-t border-white/[.06] bg-white/[.02] px-6 py-4 text-center text-[11px] leading-relaxed text-slate-500 no-print">
+                Present this code at the door. Scanning opens
+                {{ \App\Support\BookingRules::SCAN_OPEN_MINUTES }} minutes before the show and closes
+                {{ \App\Support\BookingRules::SCAN_CLOSE_MINUTES }} minutes after the start time.
             </div>
         </div>
 
-        <div class="mt-6 flex flex-wrap justify-center gap-3">
-            <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">Print ticket</button>
+        <div class="mt-6 flex flex-wrap justify-center gap-3 no-print">
+            <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">Print / Save as PDF</button>
             <a href="{{ route('bookings.show', $ticket->booking_id) }}" class="btn btn-ghost btn-sm">Booking details</a>
             <a href="{{ route('bookings.index') }}" class="btn btn-ghost btn-sm">All bookings</a>
         </div>
