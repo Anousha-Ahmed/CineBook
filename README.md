@@ -192,3 +192,20 @@ tests/Feature/                               acceptance + regression tests
 - **Seats stay "held"** — make sure `php artisan schedule:work` (or cron) is running.
 - **No emails** — with `MAIL_MAILER=log` they are written to `storage/logs/laravel.log`; with SMTP, check the credentials and that the queue worker is running.
 - **Posters do not load** — run `php artisan storage:link`.
+
+## 12. Backup notes
+
+Two things hold state that cannot be regenerated from code: the MySQL database and uploaded posters in `storage/app/public`.
+
+```bash
+# Database (MySQL): one consistent dump
+mysqldump -u root -p --single-transaction --routines cinebook > cinebook-$(date +%F).sql
+
+# Uploaded posters and public files
+tar -czf cinebook-storage-$(date +%F).tar.gz storage/app/public public/storage
+```
+
+- Run both on the same schedule (a nightly cron entry is enough for this app) and keep them together — a database row without its poster file references a missing image.
+- Restore into an empty database: `mysql -u root -p cinebook < cinebook-YYYY-MM-DD.sql`, then unpack the storage archive.
+- `.env` is not part of a code backup. Store it separately in a password manager, since it carries the Stripe keys, webhook secret and mail credentials.
+- Test a restore into a scratch database periodically; an untested backup is not a backup.
