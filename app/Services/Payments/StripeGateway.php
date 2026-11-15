@@ -50,6 +50,7 @@ class StripeGateway implements PaymentGateway
             'cancel_url' => route('checkout.cancel'),
             'client_reference_id' => (string) $booking->id,
             'metadata' => ['booking_id' => $booking->id],
+            'payment_intent_data' => ['metadata' => ['booking_id' => $booking->id]],
         ]);
 
         return ['id' => $session->id, 'url' => $session->url];
@@ -66,10 +67,14 @@ class StripeGateway implements PaymentGateway
 
     public function refund(Payment $payment, ?int $amountCents = null): string
     {
+        $amount = $amountCents ?? $payment->amount_cents;
+
         $refund = Refund::create([
             'payment_intent' => $payment->stripe_payment_intent,
-            'amount' => $amountCents ?? $payment->amount_cents,
+            'amount' => $amount,
             'reason' => 'requested_by_customer',
+        ], [
+            'idempotency_key' => "booking-{$payment->booking_id}-refund-{$amount}",
         ]);
 
         return $refund->id;

@@ -131,11 +131,11 @@ class PaymentService
                     DB::afterCommit(function () use ($booking) {
                         Mail::to($booking->user)->queue(new BookingCancelledMail(
                             $booking,
-                            'Your payment arrived after the seat hold expired and another customer took the seats. A full refund has been processed.'
+                            'Your payment arrived after the seat hold expired and another customer took the seats. A full refund is being processed.'
                         ));
-                    });
 
-                    \App\Jobs\RefundBookingJob::dispatch($booking->id, 'Paid after hold expiry');
+                        \App\Jobs\RefundBookingJob::dispatch($booking->id, 'Paid after hold expiry');
+                    });
 
                     return ['booking' => $booking, 'confirmed' => false];
                 }
@@ -210,12 +210,25 @@ class PaymentService
         }
 
         DB::transaction(function () use ($booking) {
+            /** @var Booking|null $booking */
+            $booking = Booking::with('payment')->lockForUpdate()->find($booking->id);
+
+            if (! $booking || $booking->status !== 'pending_payment') {
+                return;
+            }
+
+            $seatIds = $booking->seats()->pluck('seats.id')->all();
+
             $booking->update(['status' => 'expired']);
             $booking->payment?->update([
                 'status' => 'failed',
                 'failure_reason' => 'Checkout session expired before payment.',
             ]);
             $booking->seats()->detach();
+            SeatHold::where('user_id', $booking->user_id)
+                ->where('showtime_id', $booking->showtime_id)
+                ->whereIn('seat_id', $seatIds)
+                ->delete();
 
             DB::afterCommit(function () use ($booking) {
                 Mail::to($booking->user)->queue(new PaymentFailedMail(
@@ -235,22 +248,31 @@ class PaymentService
                 fn ($q) => $q->where('stripe_session_id', $sessionId)
             )->first();
 
-        if (! $booking || in_array($booking->status, ['confirmed', 'refunded', 'cancelled'], true)) {
-            return $booking;
-        }
-
-        if ($booking->status !== 'pending_payment') {
+        if (! $booking || $booking->status !== 'pending_payment') {
             return $booking;
         }
 
         DB::transaction(function () use ($booking, $reason) {
-            $booking->update(['status' => 'failed']);
-            $booking->payment?->update(['status' => 'failed', 'failure_reason' => $reason]);
-            $booking->seats()->detach();
-            $booking->tickets()->update(['status' => 'void']);
+            /** @var Booking|null $locked */
+            $locked = Booking::with('payment')->lockForUpdate()->find($booking->id);
 
-            DB::afterCommit(function () use ($booking, $reason) {
-                Mail::to($booking->user)->queue(new PaymentFailedMail($booking, $reason));
+            if (! $locked || $locked->status !== 'pending_payment') {
+                return;
+            }
+
+            $seatIds = $locked->seats()->pluck('seats.id')->all();
+
+            $locked->update(['status' => 'failed']);
+            $locked->payment?->update(['status' => 'failed', 'failure_reason' => $reason]);
+            $locked->seats()->detach();
+            $locked->tickets()->update(['status' => 'void']);
+            SeatHold::where('user_id', $locked->user_id)
+                ->where('showtime_id', $locked->showtime_id)
+                ->whereIn('seat_id', $seatIds)
+                ->delete();
+
+            DB::afterCommit(function () use ($locked, $reason) {
+                Mail::to($locked->user)->queue(new PaymentFailedMail($locked, $reason));
             });
         });
 

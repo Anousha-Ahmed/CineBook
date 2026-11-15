@@ -2,13 +2,19 @@
 
 namespace App\Services;
 
+use App\Contracts\PaymentGateway;
 use App\Jobs\RefundBookingJob;
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Models\SeatHold;
 use Illuminate\Support\Facades\DB;
 
 class RefundService
 {
+    public function __construct(private PaymentGateway $gateway)
+    {
+    }
+
     public function request(Booking $booking, string $reason): void
     {
         $payment = $booking->payment;
@@ -41,24 +47,55 @@ class RefundService
     }
 
     /**
-     * Cancel a paid booking: void tickets, release seats, refund the payment.
+     * Cancel a booking once: void tickets, release seats and holds, then refund.
+     * Concurrent duplicate requests leave the first result untouched.
      */
     public function cancelBooking(Booking $booking, string $reason, bool $markRefunded = false): void
     {
-        DB::transaction(function () use ($booking, $reason, $markRefunded) {
-            $before = $booking->only(['status']);
+        $cancelled = DB::transaction(function () use ($booking, $reason, $markRefunded) {
+            /** @var Booking|null $locked */
+            $locked = Booking::lockForUpdate()->find($booking->id);
 
-            $booking->update([
+            if (! $locked || in_array($locked->status, ['cancelled', 'refunded', 'expired', 'failed'], true)) {
+                return false;
+            }
+
+            $before = $locked->only(['status']);
+            $seatIds = $locked->seats()->pluck('seats.id')->all();
+
+            $locked->update([
                 'status' => $markRefunded ? 'refunded' : 'cancelled',
             ]);
 
-            $booking->tickets()->update(['status' => 'void']);
-            $booking->seats()->detach();
+            $locked->tickets()->update(['status' => 'void']);
+            $locked->seats()->detach();
 
-            AuditLogger::log('booking.cancelled', $booking, $before, ['status' => $booking->status], ['reason' => $reason]);
+            SeatHold::where('user_id', $locked->user_id)
+                ->where('showtime_id', $locked->showtime_id)
+                ->whereIn('seat_id', $seatIds)
+                ->delete();
+
+            AuditLogger::log('booking.cancelled', $locked, $before, ['status' => $locked->status], ['reason' => $reason]);
+
+            return true;
         });
 
-        $this->request($booking->fresh(), $reason);
+        if (! $cancelled) {
+            return;
+        }
+
+        $fresh = $booking->fresh(['payment']);
+
+        // An unpaid booking can still have a live Checkout Session; close it.
+        if ($fresh->payment && $fresh->payment->status === 'pending') {
+            if ($fresh->payment->stripe_session_id) {
+                $this->gateway->expireCheckoutSession($fresh->payment->stripe_session_id);
+            }
+
+            $fresh->payment->update(['status' => 'failed', 'failure_reason' => $reason]);
+        }
+
+        $this->request($fresh, $reason);
     }
 
     public function refundablePaymentsQuery()

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Booking;
 use App\Models\SeatHold;
 use App\Services\PaymentService;
+use App\Services\SettingsService;
 use Illuminate\Console\Command;
 
 class ExpireStaleBookings extends Command
@@ -15,14 +16,15 @@ class ExpireStaleBookings extends Command
 
     public function handle(PaymentService $payments): int
     {
-        $held = SeatHold::where('expires_at', '<=', now())->get();
-        $staleShowtimes = $held->pluck('showtime_id')->unique();
+        $staleHolds = SeatHold::where('expires_at', '<=', now())->count();
 
         SeatHold::where('expires_at', '<=', now())->delete();
 
+        // Pending bookings can outlive their holds (worker restarted, hold wiped),
+        // so expire them on age as well instead of only on stale seat_holds.
         $pending = Booking::with('payment')
             ->where('status', 'pending_payment')
-            ->whereIn('showtime_id', $staleShowtimes)
+            ->where('created_at', '<=', now()->subMinutes((int) SettingsService::get('hold_minutes', 10)))
             ->get();
 
         $expired = 0;
@@ -41,7 +43,7 @@ class ExpireStaleBookings extends Command
             $expired++;
         }
 
-        $this->info("Cleared {$held->count()} stale holds and expired {$expired} unpaid bookings.");
+        $this->info("Cleared {$staleHolds} stale holds and expired {$expired} unpaid bookings.");
 
         return self::SUCCESS;
     }

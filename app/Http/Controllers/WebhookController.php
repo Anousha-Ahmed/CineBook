@@ -35,6 +35,7 @@ class WebhookController extends Controller
 
         switch ($event->type) {
             case 'checkout.session.completed':
+            case 'checkout.session.async_payment_succeeded':
                 // Card payments arrive as paid; delayed methods only complete when paid.
                 if (($session->payment_status ?? null) === 'paid' && $bookingId) {
                     $payments->confirmFromWebhook(
@@ -63,11 +64,16 @@ class WebhookController extends Controller
                 break;
 
             case 'payment_intent.payment_failed':
-                $payments->failPayment(
-                    $session->metadata['checkout_session_id'] ?? '',
-                    null,
-                    'The payment could not be completed.',
-                );
+                // Checkout populates this metadata when it creates the PaymentIntent.
+                $intentBookingId = $session->metadata['booking_id'] ?? null;
+
+                if ($intentBookingId) {
+                    $payments->failPayment(
+                        '',
+                        (int) $intentBookingId,
+                        $session->last_payment_error->message ?? 'The payment could not be completed.',
+                    );
+                }
                 break;
         }
 
