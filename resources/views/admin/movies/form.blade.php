@@ -62,6 +62,13 @@
                 @error('poster_url') <p class="mt-1.5 text-sm text-red-400">{{ $message }}</p> @enderror
             </div>
 
+            <div>
+                <label for="trailer_url" class="label">Trailer URL</label>
+                <input id="trailer_url" name="trailer_url" type="url" value="{{ old('trailer_url', $movie->trailer_url) }}" class="input mt-1.5 w-full" placeholder="https://www.youtube.com/watch?v=...">
+                <p class="mt-1.5 text-[11px] text-slate-500">YouTube links are embedded on the movie page. Other links open in a new tab.</p>
+                @error('trailer_url') <p class="mt-1.5 text-sm text-red-400">{{ $message }}</p> @enderror
+            </div>
+
             <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[.07] bg-white/[.02] px-4 py-3">
                 <input type="checkbox" name="is_featured" value="1" @checked(old('is_featured', $movie->is_featured)) class="mt-0.5 h-4 w-4 rounded border-white/20 bg-night-800 text-brand-500 focus:ring-brand-500/40">
                 <span>

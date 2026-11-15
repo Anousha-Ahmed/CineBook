@@ -26,7 +26,14 @@ class DashboardController extends Controller
             ->whereDate('created_at', $today)
             ->count();
 
-        $ticketsSold = Ticket::whereHas('booking', fn ($q) => $q->where('status', 'confirmed'))->count();
+        $ticketsSold = Ticket::whereDate('created_at', $today)
+            ->whereHas('booking', fn ($q) => $q->where('status', 'confirmed'))
+            ->count();
+
+        $seatCountByScreen = Seat::where('is_disabled', false)
+            ->selectRaw('screen_id, count(*) as total')
+            ->groupBy('screen_id')
+            ->pluck('total', 'screen_id');
 
         $todayShowtimeIds = Showtime::whereDate('start_time', $today)->pluck('id');
 
@@ -37,8 +44,8 @@ class DashboardController extends Controller
             ->count();
 
         $capacityToday = (int) Showtime::whereDate('start_time', $today)
-            ->get()
-            ->sum(fn ($s) => Seat::where('screen_id', $s->screen_id)->count());
+            ->get(['screen_id'])
+            ->sum(fn ($s) => (int) ($seatCountByScreen[$s->screen_id] ?? 0));
 
         $occupancy = $capacityToday > 0 ? round(($soldToday / $capacityToday) * 100) : 0;
 
@@ -48,8 +55,8 @@ class DashboardController extends Controller
             ->get();
 
         $todayShowtimes = Showtime::with(['movie', 'screen'])
-            ->whereDate('start_time', $today)
-            ->where('start_time', '>', now()->subHours(2))
+            ->where('status', 'scheduled')
+            ->whereBetween('start_time', [now(), now()->addDay()])
             ->orderBy('start_time')
             ->take(6)
             ->get();

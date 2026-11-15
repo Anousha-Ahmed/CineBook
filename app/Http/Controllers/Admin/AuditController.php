@@ -16,10 +16,19 @@ class AuditController extends Controller
                     ->orWhere('target_type', 'like', "%{$search}%")
                     ->orWhereHas('actor', fn ($a) => $a->where('email', 'like', "%{$search}%"));
             }))
+            ->when($request->query('action'), fn ($q, $action) => $q->where('action', $action))
+            ->when($request->query('actor'), fn ($q, $actor) => $q->whereHas(
+                'actor',
+                fn ($a) => $a->where('email', 'like', "%{$actor}%")->orWhere('name', 'like', "%{$actor}%")
+            ))
+            ->when($request->query('from'), fn ($q, $from) => $q->whereDate('created_at', '>=', $from))
+            ->when($request->query('to'), fn ($q, $to) => $q->whereDate('created_at', '<=', $to))
             ->latest()
             ->paginate(30)
             ->withQueryString();
 
-        return view('admin.audit.index', compact('logs'));
+        $actions = AuditLog::select('action')->distinct()->orderBy('action')->pluck('action');
+
+        return view('admin.audit.index', compact('logs', 'actions'));
     }
 }

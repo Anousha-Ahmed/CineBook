@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\AuditLogger;
 use App\Services\SettingsService;
 use Illuminate\Http\Request;
 
@@ -36,9 +37,18 @@ class SettingController extends Controller
             'currency' => ['required', 'string', 'in:usd,eur,gbp,pkr'],
         ]);
 
+        $before = [];
+        foreach (array_keys(self::DEFAULTS) as $key) {
+            $before[$key] = SettingsService::get($key, self::DEFAULTS[$key]);
+        }
+
+        $after = array_map(fn ($value) => (string) $value, $data);
+
         foreach ($data as $key => $value) {
             SettingsService::put($key, $value);
         }
+
+        AuditLogger::log('settings.updated', null, $before, $after);
 
         return back()->with('success', 'Settings saved.');
     }

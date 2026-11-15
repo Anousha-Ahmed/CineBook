@@ -109,7 +109,7 @@ class ScreenController extends Controller
             ->join('bookings', 'bookings.id', '=', 'booking_seat.booking_id')
             ->join('showtimes', 'showtimes.id', '=', 'bookings.showtime_id')
             ->where('booking_seat.seat_id', $seat->id)
-            ->where('bookings.status', 'confirmed')
+            ->whereIn('bookings.status', ['confirmed', 'pending_payment'])
             ->where('showtimes.start_time', '>', now())
             ->exists();
 

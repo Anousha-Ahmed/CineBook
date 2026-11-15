@@ -1,8 +1,34 @@
 <x-layouts.admin heading="Audit log" subheading="{{ $logs->total() }} recorded actions">
     <div class="space-y-5">
-        <form method="GET" action="{{ route('admin.audit.index') }}" class="grid gap-3 rounded-2xl border border-white/[.07] bg-night-900/60 p-4 sm:grid-cols-[1fr_auto]">
-            <input type="search" name="search" value="{{ request('search') }}" class="input" placeholder="Action, target or admin email">
-            <button type="submit" class="btn btn-ghost">Search</button>
+        <form method="GET" action="{{ route('admin.audit.index') }}" class="grid gap-3 rounded-2xl border border-white/[.07] bg-night-900/60 p-4 sm:grid-cols-2 xl:grid-cols-6">
+            <div class="xl:col-span-2">
+                <label for="search" class="label">Search</label>
+                <input id="search" type="search" name="search" value="{{ request('search') }}" class="input mt-1.5 w-full" placeholder="Action, target or admin email">
+            </div>
+            <div>
+                <label for="action" class="label">Action</label>
+                <select id="action" name="action" class="input mt-1.5 w-full">
+                    <option value="">All actions</option>
+                    @foreach ($actions as $action)
+                        <option value="{{ $action }}" @selected(request('action') === $action)>{{ $action }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="actor" class="label">Actor</label>
+                <input id="actor" name="actor" type="text" value="{{ request('actor') }}" class="input mt-1.5 w-full" placeholder="name or email">
+            </div>
+            <div>
+                <label for="from" class="label">From</label>
+                <input id="from" name="from" type="date" value="{{ request('from') }}" class="input mt-1.5 w-full">
+            </div>
+            <div>
+                <label for="to" class="label">To</label>
+                <div class="mt-1.5 flex gap-2">
+                    <input id="to" name="to" type="date" value="{{ request('to') }}" class="input w-full">
+                    <button type="submit" class="btn btn-ghost shrink-0">Apply</button>
+                </div>
+            </div>
         </form>
 
         <div class="table-shell">
@@ -18,6 +44,7 @@
                             <tr>
                                 <th class="px-5 py-3.5 font-medium">When</th>
                                 <th class="px-5 py-3.5 font-medium">Actor</th>
+                                <th class="px-5 py-3.5 font-medium">IP</th>
                                 <th class="px-5 py-3.5 font-medium">Action</th>
                                 <th class="px-5 py-3.5 font-medium">Target</th>
                                 <th class="px-5 py-3.5 font-medium">Detail</th>
@@ -29,8 +56,9 @@
                                     <td class="px-5 py-3.5 text-xs text-slate-500">{{ $log->created_at->format('j M Y, g:i A') }}</td>
                                     <td class="px-5 py-3.5">
                                         <p class="text-slate-300">{{ $log->actor?->name ?? 'System' }}</p>
-                                        <p class="text-xs text-slate-600">{{ $log->actor?->email ?? $log->ip }}</p>
+                                        <p class="text-xs text-slate-600">{{ $log->actor?->email ?? '—' }}</p>
                                     </td>
+                                    <td class="px-5 py-3.5 font-mono text-xs text-slate-500">{{ $log->ip ?? '—' }}</td>
                                     <td class="px-5 py-3.5"><span class="badge badge-slate">{{ $log->action }}</span></td>
                                     <td class="px-5 py-3.5 text-slate-400">
                                         {{ class_basename($log->target_type ?? '—') }}{{ $log->target_id ? ' #'.$log->target_id : '' }}

@@ -64,12 +64,25 @@ class ShowtimeController extends Controller
 
     public function update(Request $request, Showtime $showtime)
     {
+        if ($showtime->status === 'cancelled') {
+            return back()->with('error', 'A cancelled showtime can no longer be edited.');
+        }
+
         $data = $this->validated($request, $showtime);
+
+        if ($data['status'] === 'cancelled') {
+            throw ValidationException::withMessages([
+                'status' => 'Use the Cancel action so every affected booking is refunded.',
+            ]);
+        }
+
         $this->guardAgainstOverlap($data, $showtime);
+
+        $before = $showtime->only(['movie_id', 'screen_id', 'start_time', 'base_price_cents', 'status']);
 
         $showtime->update($data);
 
-        AuditLogger::log('showtime.updated', $showtime, [], $showtime->only(['movie_id', 'screen_id', 'start_time', 'status']));
+        AuditLogger::log('showtime.updated', $showtime, $before, $showtime->only(['movie_id', 'screen_id', 'start_time', 'base_price_cents', 'status']));
 
         return redirect()->route('admin.showtimes.index')->with('success', 'Showtime updated.');
     }
@@ -80,37 +93,55 @@ class ShowtimeController extends Controller
             return back()->with('error', 'This showtime is already cancelled.');
         }
 
-        $showtime->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+        $result = \Illuminate\Support\Facades\DB::transaction(function () use ($showtime, $refunds) {
+            /** @var Showtime|null $locked */
+            $locked = Showtime::lockForUpdate()->find($showtime->id);
 
-        $bookings = $showtime->bookings()
-            ->with('user')
-            ->whereIn('status', ['confirmed', 'pending_payment'])
-            ->get();
+            if (! $locked || $locked->status === 'cancelled') {
+                return null;
+            }
 
-        foreach ($bookings as $booking) {
-            $refunds->cancelBooking(
-                $booking,
-                'The cinema cancelled this showtime.',
-                $booking->status === 'confirmed',
-            );
+            $locked->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+
+            $bookings = $locked->bookings()
+                ->with('user')
+                ->whereIn('status', ['confirmed', 'pending_payment'])
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($bookings as $booking) {
+                $refunds->cancelBooking(
+                    $booking,
+                    'The cinema cancelled this showtime.',
+                    $booking->status === 'confirmed',
+                );
+            }
+
+            $locked->bookings()
+                ->where('status', 'expired')
+                ->update(['status' => 'cancelled']);
+
+            $recipients = $bookings->pluck('user')->filter()->unique('id');
+
+            \Illuminate\Support\Facades\DB::afterCommit(function () use ($recipients, $locked) {
+                foreach ($recipients as $user) {
+                    Mail::to($user)->queue(new ShowtimeCancelledMail($locked));
+                }
+            });
+
+            AuditLogger::log('showtime.cancelled', $locked, ['status' => 'scheduled'], ['status' => 'cancelled'], [
+                'bookings' => $bookings->count(),
+                'emails' => $recipients->count(),
+            ]);
+
+            return ['bookings' => $bookings->count(), 'emails' => $recipients->count()];
+        });
+
+        if (! $result) {
+            return back()->with('error', 'This showtime is already cancelled.');
         }
 
-        $showtime->bookings()
-            ->where('status', 'expired')
-            ->update(['status' => 'cancelled']);
-
-        $recipients = $bookings->pluck('user')->filter()->unique('id');
-
-        foreach ($recipients as $user) {
-            Mail::to($user)->queue(new ShowtimeCancelledMail($showtime));
-        }
-
-        AuditLogger::log('showtime.cancelled', $showtime, [], ['status' => 'cancelled'], [
-            'bookings' => $bookings->count(),
-            'emails' => $recipients->count(),
-        ]);
-
-        return back()->with('success', "Showtime cancelled. {$bookings->count()} bookings refunded and {$recipients->count()} customers notified.");
+        return back()->with('success', "Showtime cancelled. {$result['bookings']} bookings refunded and {$result['emails']} customers notified.");
     }
 
     public function destroy(Showtime $showtime)
@@ -119,7 +150,11 @@ class ShowtimeController extends Controller
             return back()->with('error', 'This showtime has bookings attached. Cancel the showtime instead of deleting it.');
         }
 
+        $before = $showtime->only(['movie_id', 'screen_id', 'start_time', 'base_price_cents', 'status']);
+
         $showtime->delete();
+
+        AuditLogger::log('showtime.deleted', null, $before, [], ['showtime_id' => $showtime->id]);
 
         return redirect()->route('admin.showtimes.index')->with('success', 'Showtime deleted.');
     }

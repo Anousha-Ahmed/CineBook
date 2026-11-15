@@ -12,7 +12,7 @@
                 $cards = [
                     ['label' => 'Revenue today', 'value' => \App\Services\PricingService::format($revenueCents), 'hint' => 'Successful payments'],
                     ['label' => 'Bookings today', 'value' => number_format($bookingsToday), 'hint' => $confirmedToday.' confirmed'],
-                    ['label' => 'Tickets sold', 'value' => number_format($ticketsSold), 'hint' => 'All confirmed bookings'],
+                    ['label' => 'Tickets sold today', 'value' => number_format($ticketsSold), 'hint' => 'Confirmed tickets issued today'],
                     ['label' => 'Occupancy today', 'value' => $occupancy.'%', 'hint' => 'Seats sold vs capacity'],
                 ];
             @endphp
@@ -101,18 +101,18 @@
 
             <div class="card overflow-hidden">
                 <div class="flex items-center justify-between border-b border-white/[.06] px-5 py-4">
-                    <h2 class="font-display text-base font-semibold text-white">Today's showtimes</h2>
+                    <h2 class="font-display text-base font-semibold text-white">Next 24 hours</h2>
                     <a href="{{ route('admin.showtimes.index') }}" class="text-xs font-medium text-brand-400 hover:text-brand-300">Manage</a>
                 </div>
 
                 @if ($todayShowtimes->isEmpty())
-                    <p class="px-5 py-10 text-center text-sm text-slate-500">Nothing scheduled for today.</p>
+                    <p class="px-5 py-10 text-center text-sm text-slate-500">No showtimes in the next 24 hours.</p>
                 @else
                     <ul class="divide-y divide-white/[.05]">
                         @foreach ($todayShowtimes as $showtime)
                             @php
                                 $sold = (int) ($soldByShowtime[$showtime->id] ?? 0);
-                                $capacity = max(1, \App\Models\Seat::where('screen_id', $showtime->screen_id)->count());
+                                $capacity = max(1, \App\Models\Seat::where('screen_id', $showtime->screen_id)->where('is_disabled', false)->count());
                                 $fill = min(100, round(($sold / $capacity) * 100));
                             @endphp
                             <li class="px-5 py-4">

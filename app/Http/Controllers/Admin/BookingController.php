@@ -72,10 +72,7 @@ class BookingController extends Controller
             return back()->with('error', 'This booking is already cancelled.');
         }
 
-        if ($booking->hasUsedTickets()) {
-            return back()->with('error', 'Some tickets from this booking have already been scanned. It cannot be cancelled.');
-        }
-
+        // Admins may cancel and refund at any time, including after a scan (FR-CAN-4).
         $refunds->cancelBooking($booking, 'Cancelled by an administrator.');
 
         return back()->with('success', "Booking #{$booking->id} cancelled. Seats released and refund queued.");

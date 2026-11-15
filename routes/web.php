@@ -115,6 +115,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 
     Route::get('/reports', [AdminReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/sales.csv', [AdminReportController::class, 'export'])->name('reports.export');
+    Route::get('/reports/bookings.csv', [AdminReportController::class, 'bookingsExport'])->name('reports.bookings');
 
     Route::get('/audit', [AdminAuditController::class, 'index'])->name('audit.index');
 
