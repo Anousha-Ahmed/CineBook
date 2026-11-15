@@ -1,6 +1,45 @@
 # CineBook
 
-A single-cinema movie reservation system built with **Laravel 12**, Blade and MySQL 8. Customers hold seats and pay through Stripe Checkout (test mode), bookings are confirmed only by a signed Stripe webhook, and each confirmed seat gets a QR ticket. Staff scan tickets at the entrance; admins manage the cinema, refunds and reports.
+Single-cinema movie reservation system built with **Laravel 12**, Blade and MySQL 8.
+
+Customers hold seats and pay through Stripe Checkout (test mode). A booking is confirmed **only** by a signature-verified Stripe webhook, and every confirmed seat receives a QR ticket. Staff scan tickets at the entrance; admins manage the cinema, refunds and reports.
+
+## Features
+
+**Public**
+
+- Home page with featured-movie hero, "What's on" schedule for the next seven days, now-showing and coming-soon lists
+- Movie catalogue with search, genre filters and a movie detail page with trailer and showtimes
+
+**Customer**
+
+- Live seat map with premium rows, held/sold states and a hold countdown
+- Stripe Checkout in test mode; pricing is computed on the server
+- Booking history, booking detail, cancellation inside the allowed window, and QR tickets
+
+**Staff (read-only)**
+
+- Today's showtimes with live ticket counts
+- QR token lookup and scan: valid, already used, wrong showtime, outside the scan window
+- Read-only list of bookings for the selected show
+
+**Admin**
+
+- Movies (poster upload or URL, genres, featured flag), screens with seat layout and per-seat disable, showtimes with overlap protection and cancellation, genres
+- Bookings with detail and cancellation, customers with role changes, settings, audit log
+- Reports with CSV export, plus a Failed Jobs page with retry/delete
+
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Framework | Laravel 12 (PHP 8.5) |
+| Database | MySQL 8 / InnoDB; SQLite `:memory:` for tests |
+| Views | Blade + Alpine.js, Tailwind CSS 3.4 via Vite 7 |
+| Auth | Laravel Breeze (email verification, password reset) |
+| Payments | Stripe Checkout + signed webhook; `PAYMENT_GATEWAY=fake` for offline demos |
+| Tickets | QR code that encodes only an opaque 40-character token |
+| Queue | Database driver for mail and refunds |
 
 ## Demo accounts
 
@@ -11,6 +50,8 @@ A single-cinema movie reservation system built with **Laravel 12**, Blade and My
 | Customer | `customer@cinebook.com` | `/` |
 | Staff | `staff@cinebook.com` | `/staff/scan` |
 | Admin | `admin@cinebook.com` | `/admin` |
+
+Seeded movies use artwork bundled in `public/images/posters` and `public/images/hero`, so the demo works without internet access or `storage:link`.
 
 ## Requirements
 
@@ -46,6 +87,8 @@ php artisan storage:link
 npm run build
 ```
 
+`storage:link` is only needed for posters uploaded through the admin panel; seeded artwork is served straight from `public/images`.
+
 ## Environment checklist
 
 | Key | Purpose |
@@ -62,14 +105,16 @@ Secrets live only in `.env`, which is git-ignored. Never commit keys or log full
 
 ## Running
 
+Four terminals keep the full flow alive:
+
 ```bash
-php artisan serve            # web server
-npm run dev                  # Vite (only while editing CSS/JS)
-php artisan queue:work       # mail and refund jobs
-php artisan schedule:work    # runs bookings:expire every minute
+php artisan serve            # 1. web server
+php artisan queue:work       # 2. mail and refund jobs
+php artisan schedule:work    # 3. runs bookings:expire every minute
+npm run dev                  # 4. only while editing CSS or JS
 ```
 
-Mail and refund jobs make 4 attempts (the first try plus 3 retries, backed off 1, 5 and 15 minutes) and then land in `failed_jobs`; the admin "Failed Jobs" page can retry or delete them. In production, use a cron entry for the scheduler and Supervisor for the worker:
+Mail and refund jobs make 4 attempts (first try plus 3 retries, backed off 60, 300 and 900 seconds) and then land in `failed_jobs`; the admin "Failed Jobs" page can retry or delete them. In production, use a cron entry for the scheduler and Supervisor for the worker:
 
 ```cron
 * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
@@ -98,7 +143,15 @@ Without `stripe listen`, bookings stay `pending_payment`: the success page only 
 6. If payment arrives after the hold expired and the seats were taken, the booking is not confirmed; the payment is refunded and the customer is emailed.
 7. A mail failure never changes booking or payment state.
 
-Fixed rules are in `app/Support/BookingRules.php`: sales close 15 minutes before the show; scanning opens 60 minutes before and closes 30 minutes after the start. Hold minutes, max seats, cancellation window and premium surcharge are editable in `/admin/settings`.
+## Business rules
+
+Fixed rules live in `app/Support/BookingRules.php`:
+
+- Sales close 15 minutes before the show.
+- Scanning opens 60 minutes before the start and closes 30 minutes after.
+- Cancellation is allowed up to 2 hours before the show.
+
+Hold minutes, maximum seats per booking, cancellation cutoff and the premium surcharge are editable in `/admin/settings`.
 
 ## How double booking is prevented
 
@@ -109,13 +162,24 @@ Fixed rules are in `app/Support/BookingRules.php`: sales close 15 minutes before
 5. Before confirming a webhook, `PaymentService` locks the booking and checks that no other confirmed booking or live hold owns the seats; otherwise it refunds.
 6. A scan runs `UPDATE tickets SET status='used' WHERE id=? AND status='valid'` and checks the affected rows, so two simultaneous scans cannot both succeed.
 
+## Security
+
+- Role middleware (`role:staff,admin`, `role:admin`) guards staff and admin routes; customers can only book.
+- Policies (`BookingPolicy`, `TicketPolicy`) stop a customer from opening another customer's booking or ticket.
+- Every write goes through a Form Request in `app/Http/Requests` (NFR-10), including the seat-hold request.
+- CSRF protection is on for every form; only `/stripe/webhook` is exempt, and it is authenticated by the Stripe signature instead.
+- The QR code contains only the opaque ticket token, never customer details.
+- Card data never reaches the application; Stripe Checkout hosts the payment form.
+- `verification.verify` keeps `auth`, `signed` and `throttle:6,1`, so verification links are signed and rate-limited.
+- Admin changes are written to `audit_logs` with before/after values and the actor's IP.
+
 ## Tests
 
 ```bash
 php artisan test
 ```
 
-Runs on in-memory SQLite with the fake payment gateway; no MySQL or network needed. The six required acceptance tests:
+47 tests and 118 assertions run on in-memory SQLite with the fake payment gateway; no MySQL, Stripe or network access is needed. The six required acceptance tests:
 
 | Requirement | Test |
 | --- | --- |
@@ -126,9 +190,40 @@ Runs on in-memory SQLite with the fake payment gateway; no MySQL or network need
 | A duplicate QR scan is rejected | `TicketScanTest::test_a_duplicate_qr_scan_is_rejected` |
 | A customer can't view another's booking | `BookingAccessTest::test_a_customer_cannot_view_another_customers_booking` |
 
+## Project structure
+
+```
+app/
+  Http/Controllers/        public, customer, staff and Admin/ controllers
+  Http/Requests/           Form Requests (NFR-10)
+  Models/                  Movie, Screen, Seat, Showtime, Booking, Ticket, Payment, ...
+  Policies/                BookingPolicy, TicketPolicy
+  Services/                SeatHoldService, PaymentService, RefundService, PricingService, TicketScanService, AuditLogger
+  Support/                 BookingRules, Qr
+database/
+  migrations/              schema
+  seeders/                 demo users, screens, movies, showtimes, settings
+public/images/
+  posters/                 bundled poster artwork used by the seeder
+  hero/                    bundled hero backdrop
+resources/views/           Blade layouts, public pages, staff and admin pages
+tests/Feature/             acceptance and security tests
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| Bookings never confirm | Start `stripe listen` and check `STRIPE_WEBHOOK_SECRET`; the webhook is the only confirmation source |
+| Seats stay blocked after closing the tab | Run `php artisan schedule:work` (or `php artisan bookings:expire`) to release expired holds |
+| Emails are not delivered | Set `QUEUE_CONNECTION=database` and run `php artisan queue:work`; mail is written to the log when `MAIL_MAILER=log` |
+| Admin-uploaded posters 404 | Run `php artisan storage:link` |
+| Styles look unstyled after pulling | Run `npm install && npm run build` |
+| Scanner says "Wrong showtime" | The ticket belongs to another date or screen; the scanner lists today's showtimes only |
+
 ## Backup and restore
 
-The MySQL database and uploaded posters (`storage/app/public`) cannot be regenerated from code.
+The MySQL database and admin-uploaded posters (`storage/app/public`) cannot be regenerated from code. Seeded artwork in `public/images` comes from the repository.
 
 ```bash
 mysqldump -u root -p --single-transaction --routines cinebook > cinebook-$(date +%F).sql
@@ -141,6 +236,5 @@ Run both on the same schedule and keep them together. Restore with `mysql -u roo
 
 - Once a customer clicks Pay, the booking is `pending_payment` and its seats stay unavailable until the scheduler expires it, even after the 10-minute hold ends. Keep `schedule:work` running.
 - After confirmation, "one buyer per seat per showtime" is enforced by application checks and row locks, not by a unique database constraint.
-- Ownership checks are in controllers (no Policy classes), and validation is inline (only the Breeze form requests exist).
-- Customer routes need login and a verified email but are not role-restricted; staff and admin areas are.
 - Partial or tiered refunds (bonus) are not implemented; every refund is 100%.
+- The staff scanner lists today's showtimes only.
