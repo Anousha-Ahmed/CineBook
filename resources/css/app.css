@@ -1,3 +1,173 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    html {
+        @apply scroll-smooth;
+    }
+
+    body {
+        @apply bg-night-950 text-slate-300 antialiased;
+    }
+
+    ::selection {
+        @apply bg-brand-600/40 text-white;
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #0b1120;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #1f2937;
+        border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #334155;
+    }
+}
+
+@layer components {
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold leading-none transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-night-950 disabled:pointer-events-none disabled:opacity-45;
+    }
+
+    .btn-primary {
+        @apply bg-brand-600 text-white shadow-lg shadow-brand-600/25 hover:bg-brand-500 active:bg-brand-700;
+    }
+
+    .btn-ghost {
+        @apply border border-white/10 bg-white/[.03] text-slate-200 hover:border-white/25 hover:bg-white/[.07];
+    }
+
+    .btn-danger {
+        @apply bg-red-600/90 text-white hover:bg-red-500;
+    }
+
+    .btn-sm {
+        @apply rounded-lg px-3.5 py-2 text-xs;
+    }
+
+    .card {
+        @apply rounded-2xl border border-white/[.08] bg-night-900/70 shadow-card;
+    }
+
+    .card-hover {
+        @apply transition duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-glow;
+    }
+
+    .input {
+        @apply w-full rounded-xl border border-white/10 bg-night-950/70 px-4 py-3 text-sm text-white placeholder-slate-500 shadow-inner transition focus:border-brand-500 focus:ring-0;
+    }
+
+    .label {
+        @apply mb-2 block text-[11px] font-semibold uppercase tracking-[.16em] text-slate-400;
+    }
+
+    .eyebrow {
+        @apply text-[11px] font-semibold uppercase tracking-[.22em] text-brand-400;
+    }
+
+    .section-title {
+        @apply font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl;
+    }
+
+    .muted {
+        @apply text-sm text-slate-400;
+    }
+
+    .chip {
+        @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-xs font-medium text-slate-300;
+    }
+
+    .badge {
+        @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide;
+    }
+
+    .badge-green {
+        @apply bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30;
+    }
+
+    .badge-blue {
+        @apply bg-brand-500/15 text-brand-400 ring-1 ring-inset ring-brand-500/30;
+    }
+
+    .badge-amber {
+        @apply bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30;
+    }
+
+    .badge-red {
+        @apply bg-red-500/15 text-red-300 ring-1 ring-inset ring-red-500/30;
+    }
+
+    .badge-slate {
+        @apply bg-white/[.06] text-slate-300 ring-1 ring-inset ring-white/10;
+    }
+
+    .table-shell {
+        @apply overflow-hidden rounded-2xl border border-white/[.08] bg-night-900/70;
+    }
+
+    .table-shell table {
+        @apply w-full text-left text-sm;
+    }
+
+    .table-shell thead {
+        @apply bg-white/[.03] text-[11px] uppercase tracking-[.14em] text-slate-400;
+    }
+
+    .table-shell th {
+        @apply px-4 py-3 font-semibold;
+    }
+
+    .table-shell td {
+        @apply border-t border-white/[.06] px-4 py-3 align-middle text-slate-300;
+    }
+}
+
+/* Seat map ------------------------------------------------------------- */
+.seat {
+    @apply flex h-8 w-8 items-center justify-center rounded-md border text-[10px] font-semibold transition duration-150 sm:h-9 sm:w-9 sm:text-[11px];
+}
+
+.seat-available {
+    @apply border-white/10 bg-night-700 text-slate-300 hover:-translate-y-0.5 hover:border-brand-500/60 hover:bg-brand-500/20 hover:text-white;
+}
+
+.seat-premium {
+    @apply border-amber-400/25 bg-amber-500/10 text-amber-200/90 hover:border-amber-400/70 hover:bg-amber-500/20;
+}
+
+.seat-selected {
+    @apply scale-105 border-brand-400 bg-brand-600 text-white shadow-lg shadow-brand-600/40;
+}
+
+.seat-held,
+.seat-sold {
+    @apply cursor-not-allowed border-transparent bg-white/[.04] text-slate-600;
+}
+
+.seat-disabled {
+    @apply cursor-not-allowed border-transparent bg-transparent text-transparent;
+}
+
+/* Misc ----------------------------------------------------------------- */
+.text-balance {
+    text-wrap: balance;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
