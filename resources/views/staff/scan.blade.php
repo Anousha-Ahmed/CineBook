@@ -40,7 +40,7 @@
                     <label for="token" class="label">{{ __('Ticket code') }}</label>
                     <div class="mt-2 flex flex-col gap-3 sm:flex-row">
                         <input id="token" name="token" type="text" x-ref="tokenInput" value="{{ old('token') }}"
-                               class="input w-full font-mono text-sm tracking-wide" placeholder="Paste the 40-character code" required autocomplete="off" autofocus>
+                               class="input w-full font-mono text-lg tracking-wide" placeholder="Paste the 40-character code" required autocomplete="off" autofocus>
                         <button type="submit" class="btn btn-primary shrink-0">
                             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6" /></svg>
                             {{ __('Validate') }}
@@ -71,51 +71,28 @@
             @if (session('scan'))
                 @php
                     $scan = session('scan');
-                    $toneClasses = match ($scan['result']) {
-                        'valid' => 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25',
-                        'invalid', 'invalid_booking', 'cancelled', 'expired' => 'bg-red-500/15 text-red-300 ring-red-500/25',
-                        default => 'bg-amber-500/15 text-amber-300 ring-amber-500/25',
-                    };
+                    $admitted = $scan['result'] === 'valid';
+                    $headline = $admitted ? 'Admitted' : $scan['message'];
                 @endphp
-                <div class="card overflow-hidden">
-                    <div class="border-b border-white/[.06] px-6 py-4">
-                        <p class="text-xs uppercase tracking-[.18em] text-slate-500">{{ __('Last scan result') }}</p>
-                    </div>
-                    <div class="flex items-start gap-4 px-6 py-6">
-                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset {{ $toneClasses }}">
-                            @if ($scan['result'] === 'valid')
-                                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5 5L20 6.5" /></svg>
+                <div class="overflow-hidden rounded-2xl ring-1 ring-inset {{ $admitted ? 'bg-emerald-500/15 ring-emerald-500/40' : 'bg-red-500/15 ring-red-500/40' }}">
+                    <div class="flex items-center gap-5 px-6 py-7">
+                        <span class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl {{ $admitted ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300' }}">
+                            @if ($admitted)
+                                <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5 5L20 6.5" /></svg>
                             @else
-                                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.5" /><circle cx="12" cy="12" r="9" /></svg>
+                                <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.5" /><circle cx="12" cy="12" r="9" /></svg>
                             @endif
                         </span>
                         <div class="min-w-0 flex-1">
-                            <p class="font-display text-lg font-semibold text-white">{{ $scan['message'] }}</p>
-                            <p class="mt-1 font-mono text-xs text-slate-500">{{ $scan['token'] }}</p>
+                            <p class="font-display text-3xl font-bold uppercase tracking-wide {{ $admitted ? 'text-emerald-300' : 'text-red-300' }} sm:text-4xl">
+                                {{ $headline }}
+                            </p>
 
                             @if ($scan['summary'])
-                                <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                    <div>
-                                        <dt class="text-xs text-slate-500">{{ __('Movie') }}</dt>
-                                        <dd class="text-slate-200">{{ $scan['summary']['movie'] }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-xs text-slate-500">{{ __('Screen') }}</dt>
-                                        <dd class="text-slate-200">{{ $scan['summary']['screen'] }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-xs text-slate-500">{{ __('Seat') }}</dt>
-                                        <dd class="text-slate-200">{{ $scan['summary']['seat'] }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-xs text-slate-500">{{ __('Showtime') }}</dt>
-                                        <dd class="text-slate-200">{{ $scan['summary']['start'] }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-xs text-slate-500">{{ __('Booking') }}</dt>
-                                        <dd class="text-slate-200">{{ $scan['summary']['booking'] }}</dd>
-                                    </div>
-                                </dl>
+                                <p class="mt-2 text-base font-medium text-white">
+                                    {{ $scan['summary']['movie'] }} &middot; Seat {{ $scan['summary']['seat'] }} &middot; {{ $scan['summary']['screen'] }}
+                                </p>
+                                <p class="mt-1 text-sm text-slate-300">{{ $scan['summary']['start'] }} &middot; Booking #{{ $scan['summary']['booking'] }}</p>
                             @endif
                         </div>
                     </div>
