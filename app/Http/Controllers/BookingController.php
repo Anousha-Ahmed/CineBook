@@ -60,7 +60,8 @@ class BookingController extends Controller
         try {
             $holds->holdSeats(auth()->id(), $showtime->id, $data['seat_ids']);
 
-            return redirect()->route('checkout')->with('success', 'Seats reserved. Complete payment within the hold window.');
+            return redirect()->route('checkout', ['showtime' => $showtime->id])
+                ->with('success', 'Seats reserved. Complete payment within the hold window.');
         } catch (Exception $e) {
             return back()->with('error', $e->getMessage())->withInput();
         }

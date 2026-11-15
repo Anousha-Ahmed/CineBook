@@ -11,11 +11,11 @@
                 <p class="mt-2 text-sm text-slate-400">Your seats are reserved. Complete payment before the hold expires.</p>
             </div>
 
-            <div class="flex items-center gap-2">
-                <span class="badge badge-slate">1 Seats</span>
-                <span class="badge badge-blue">2 Payment</span>
-                <span class="badge badge-slate">3 Ticket</span>
-            </div>
+            <ol class="flex items-center gap-2" aria-label="Checkout steps">
+                <li class="badge badge-slate"><span class="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold" aria-hidden="true">1</span>Seats</li>
+                <li class="badge badge-blue" aria-current="step"><span class="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/20 text-[10px] font-semibold" aria-hidden="true">2</span>Payment</li>
+                <li class="badge badge-slate"><span class="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold" aria-hidden="true">3</span>Ticket</li>
+            </ol>
         </div>
 
         <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -69,7 +69,7 @@
                     <h3 class="text-sm font-semibold text-white">Before you pay</h3>
                     <ul class="mt-3 space-y-2 text-xs leading-relaxed text-slate-500">
                         <li class="flex gap-2"><span class="text-brand-400">&bull;</span> Tickets are e-delivered instantly. Your QR code is your entry pass.</li>
-                        <li class="flex gap-2"><span class="text-brand-400">&bull;</span> Doors open 30 minutes before the show; scanning closes 30 minutes after start.</li>
+                        <li class="flex gap-2"><span class="text-brand-400">&bull;</span> Scanning opens 60 minutes before the show and closes 30 minutes after the start.</li>
                         <li class="flex gap-2"><span class="text-brand-400">&bull;</span> Free cancellation up to {{ \App\Services\SettingsService::get('cancel_cutoff_hours', 2) }} hours before showtime.</li>
                         <li class="flex gap-2"><span class="text-brand-400">&bull;</span> This is Stripe test mode &mdash; no real money is charged.</li>
                     </ul>
@@ -103,6 +103,7 @@
 
                     <form action="{{ route('checkout.process') }}" method="POST" class="mt-5">
                         @csrf
+                        <input type="hidden" name="showtime" value="{{ $showtime->id }}">
                         <button id="pay-btn" type="submit" class="btn btn-primary w-full">
                             Pay {{ PricingService::format($totalCents) }} with Stripe
                         </button>
@@ -127,7 +128,7 @@
                 const el = document.getElementById('hold-timer');
                 const payBtn = document.getElementById('pay-btn');
                 const expired = document.getElementById('hold-expired');
-                let remaining = Number(el.dataset.seconds);
+                let remaining = Math.max(0, Math.floor(Number(el.dataset.seconds)));
 
                 const paint = () => {
                     if (remaining <= 0) {
@@ -140,7 +141,7 @@
                     }
 
                     const m = Math.floor(remaining / 60).toString().padStart(2, '0');
-                    const s = (remaining % 60).toString().padStart(2, '0');
+                    const s = Math.floor(remaining % 60).toString().padStart(2, '0');
                     el.textContent = `${m}:${s}`;
                     el.className = remaining < 120 ? 'badge badge-red' : 'badge badge-amber';
 

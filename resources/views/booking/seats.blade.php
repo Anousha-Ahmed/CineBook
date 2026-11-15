@@ -50,14 +50,31 @@
                                             $isSold = in_array($seat->id, $soldSeats, true);
                                             $isHeld = in_array($seat->id, $otherHolds, true);
                                             $isSelected = in_array($seat->id, $selectedSeats, true);
-                                            $state = $isSold ? 'sold' : ($isHeld ? 'held' : ($isSelected ? 'selected' : ($seat->is_premium ? 'premium' : 'available')));
                                             $price = PricingService::seatPriceCents($showtime, $seat);
+
+                                            if ($isSold) {
+                                                $staticClass = 'seat-sold';
+                                                $staticLabel = 'Sold';
+                                            } elseif ($isHeld) {
+                                                $staticClass = 'seat-held';
+                                                $staticLabel = 'Held by another customer';
+                                            } elseif ($seat->is_disabled) {
+                                                $staticClass = 'seat-disabled';
+                                                $staticLabel = 'Not available';
+                                            } elseif ($salesClosed) {
+                                                $staticClass = ($seat->is_premium ? 'seat-premium' : 'seat-available').' cursor-not-allowed opacity-60';
+                                                $staticLabel = 'Sales closed';
+                                            } else {
+                                                $staticClass = null;
+                                                $staticLabel = null;
+                                            }
                                         @endphp
 
-                                        @if ($isSold || $isHeld || $seat->is_disabled)
-                                            <span class="seat {{ $isSold ? 'seat-sold' : ($isHeld ? 'seat-held' : 'seat-disabled') }}"
-                                                  title="{{ $seat->label }} — {{ $isSold ? 'sold' : 'held by another customer' }}">
-                                                {{ $isHeld || $isSold ? '×' : $seat->number }}
+                                        @if ($staticClass)
+                                            <span class="seat {{ $staticClass }}"
+                                                  aria-label="{{ $seat->label }} — {{ $staticLabel }}"
+                                                  title="{{ $seat->label }} — {{ $staticLabel }}">
+                                                {{ $isSold || $isHeld ? '×' : ($seat->is_disabled ? '' : $seat->number) }}
                                             </span>
                                         @else
                                             <button type="button"
@@ -66,6 +83,8 @@
                                                     data-label="{{ $seat->label }}"
                                                     data-price="{{ $price }}"
                                                     data-type="{{ $seat->is_premium ? 'premium' : 'standard' }}"
+                                                    aria-pressed="{{ $isSelected ? 'true' : 'false' }}"
+                                                    aria-label="{{ $seat->label }} — {{ $seat->is_premium ? 'Premium' : 'Standard' }} — {{ PricingService::format($price) }}"
                                                     class="seat {{ $isSelected ? 'seat-selected' : ($seat->is_premium ? 'seat-premium' : 'seat-available') }}"
                                                     title="{{ $seat->label }} — {{ $seat->is_premium ? 'Premium' : 'Standard' }} — {{ PricingService::format($price) }}">
                                                 {{ $seat->number }}
@@ -87,7 +106,8 @@
                         <span class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded-sm border border-white/15 bg-night-700"></span> Available</span>
                         <span class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded-sm border border-amber-400/30 bg-amber-500/15"></span> Premium</span>
                         <span class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded-sm bg-brand-600"></span> Selected</span>
-                        <span class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded-sm bg-white/[.05]"></span> Taken</span>
+                        <span class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded-sm bg-white/[.05]"></span> Sold</span>
+                        <span class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded-sm border border-amber-400/20 bg-amber-500/10"></span> Held by another customer</span>
                     </div>
                 </div>
             </div>
@@ -143,7 +163,9 @@
 
                         @if ($holdExpiresAt)
                             <p class="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-                                Your current hold expires at {{ $holdExpiresAt->format('g:i A') }}. Continuing replaces it.
+                                Your current hold expires in
+                                <span id="hold-countdown" data-expires-at="{{ $holdExpiresAt->toIso8601String() }}" class="font-semibold">{{ $holdExpiresAt->format('g:i A') }}</span>.
+                                Continuing replaces it.
                             </p>
                         @endif
 
@@ -190,6 +212,11 @@
                 const continueBtn = document.getElementById('continue-btn');
                 const limitNote = document.getElementById('limit-note');
 
+                // Sales closed or signed-out edge renders no booking form.
+                if (!inputs || !countBadge || !continueBtn || !limitNote) {
+                    return;
+                }
+
                 const money = (cents) => '$' + (cents / 100).toFixed(2);
                 const byId = new Map(buttons.map((b) => [b.dataset.id, b]));
 
@@ -209,6 +236,7 @@
                         const isSelected = selected.has(Number(id));
                         button.classList.toggle('seat-selected', isSelected);
                         button.classList.toggle(baseClass(button.dataset.type), !isSelected);
+                        button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
                     });
 
                     selected.forEach((id) => {
@@ -273,6 +301,36 @@
                 });
 
                 render();
+
+                const countdown = document.getElementById('hold-countdown');
+
+                if (countdown) {
+                    const expiresAt = new Date(countdown.dataset.expiresAt).getTime();
+
+                    const paintCountdown = () => {
+                        const left = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+
+                        if (left === 0) {
+                            countdown.textContent = 'expired';
+                            countdown.classList.add('text-red-300');
+                            continueBtn.disabled = true;
+
+                            return false;
+                        }
+
+                        const minutes = Math.floor(left / 60);
+                        const seconds = String(left % 60).padStart(2, '0');
+                        countdown.textContent = `${minutes}:${seconds}`;
+
+                        return true;
+                    };
+
+                    if (paintCountdown()) {
+                        const timer = setInterval(() => {
+                            if (!paintCountdown()) clearInterval(timer);
+                        }, 1000);
+                    }
+                }
             })();
         </script>
     @endpush

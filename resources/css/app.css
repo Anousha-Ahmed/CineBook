@@ -149,13 +149,55 @@
     @apply scale-105 border-brand-400 bg-brand-600 text-white shadow-lg shadow-brand-600/40;
 }
 
-.seat-held,
+.seat-held {
+    @apply cursor-not-allowed border-amber-400/20 bg-amber-500/[.07] text-amber-200/60;
+}
+
 .seat-sold {
     @apply cursor-not-allowed border-transparent bg-white/[.04] text-slate-600;
 }
 
 .seat-disabled {
     @apply cursor-not-allowed border-transparent bg-transparent text-transparent;
+}
+
+/* Print ---------------------------------------------------------------- */
+@media print {
+    body {
+        background: #fff !important;
+        color: #111 !important;
+    }
+
+    nav,
+    footer,
+    .no-print {
+        display: none !important;
+    }
+
+    .card {
+        background: #fff !important;
+        border: 1px solid #d4d4d8 !important;
+        box-shadow: none !important;
+    }
+
+    .card *,
+    .card .eyebrow,
+    .text-white,
+    .text-slate-200,
+    .text-slate-300,
+    .text-slate-400,
+    .text-slate-500,
+    .text-brand-400,
+    .text-emerald-400 {
+        color: #111 !important;
+    }
+
+    .qr-code,
+    .qr-code canvas,
+    .qr-code img {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
 }
 
 /* Misc ----------------------------------------------------------------- */

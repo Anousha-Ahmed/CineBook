@@ -12,9 +12,9 @@ use Illuminate\Http\Request;
 
 class CheckoutController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $holds = $this->activeHolds();
+        $holds = $this->activeHolds($request->integer('showtime') ?: null);
 
         if ($holds->isEmpty()) {
             return redirect()->route('movies.index')->with('error', 'Your seat hold expired. Please pick your seats again.');
@@ -28,14 +28,14 @@ class CheckoutController extends Controller
 
         $totalCents = PricingService::totalCents($showtime, $holds->pluck('seat'));
         $expiresAt = $holds->min('expires_at');
-        $secondsRemaining = max(0, now()->diffInSeconds($expiresAt, false));
+        $secondsRemaining = max(0, (int) now()->diffInSeconds($expiresAt, false));
 
         return view('checkout.index', compact('holds', 'showtime', 'totalCents', 'expiresAt', 'secondsRemaining'));
     }
 
     public function process(Request $request, PaymentService $payments)
     {
-        $holds = $this->activeHolds();
+        $holds = $this->activeHolds($request->integer('showtime') ?: null);
 
         if ($holds->isEmpty()) {
             return redirect()->route('movies.index')->with('error', 'Your seat hold expired. Please select seats again.');
@@ -69,15 +69,12 @@ class CheckoutController extends Controller
         $booking = $sessionId
             ? Payment::with(['booking.tickets.seat', 'booking.showtime.movie', 'booking.showtime.screen', 'booking.seats'])
                 ->where('stripe_session_id', $sessionId)
+                ->whereHas('booking', fn ($query) => $query->where('user_id', auth()->id()))
                 ->first()?->booking
-            : null;
-
-        if (! $booking) {
-            $booking = Booking::with(['tickets.seat', 'showtime.movie', 'showtime.screen', 'seats'])
+            : Booking::with(['tickets.seat', 'showtime.movie', 'showtime.screen', 'seats'])
                 ->where('user_id', auth()->id())
                 ->latest()
                 ->first();
-        }
 
         $paid = $booking?->status === 'confirmed';
         $processing = $booking?->status === 'pending_payment';
@@ -99,17 +96,30 @@ class CheckoutController extends Controller
                 $booking->id,
                 'The customer cancelled the payment.',
             );
-        }
 
-        $holds->releaseForUser(auth()->id());
+            $holds->releaseForUser(auth()->id(), $booking->showtime_id);
+        }
 
         return redirect()->route('movies.index')->with('error', 'Payment was cancelled. Your seats have been released.');
     }
 
-    private function activeHolds()
+    private function activeHolds(?int $showtimeId = null)
     {
-        return SeatHold::where('user_id', auth()->id())
+        $query = SeatHold::where('user_id', auth()->id())
+            ->where('expires_at', '>', now());
+
+        // A booking always belongs to exactly one showtime, so never mix holds
+        // from different shows into the same checkout.
+        $showtimeId ??= (int) SeatHold::where('user_id', auth()->id())
             ->where('expires_at', '>', now())
+            ->latest('expires_at')
+            ->value('showtime_id');
+
+        if (! $showtimeId) {
+            return SeatHold::newModelQuery()->whereRaw('1 = 0')->get();
+        }
+
+        return $query->where('showtime_id', $showtimeId)
             ->with(['seat', 'showtime.movie', 'showtime.screen'])
             ->get();
     }
