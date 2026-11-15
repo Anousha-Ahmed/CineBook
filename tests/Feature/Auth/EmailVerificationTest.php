@@ -38,7 +38,25 @@ class EmailVerificationTest extends TestCase
 
         Event::assertDispatched(Verified::class);
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
-        $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+        $response->assertRedirect(route('bookings.index'));
+        $response->assertSessionHas('success');
+    }
+
+    public function test_clicking_the_verification_link_twice_is_harmless(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $verificationUrl = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($user->email)]
+        );
+
+        $this->actingAs($user)->get($verificationUrl)->assertRedirect(route('bookings.index'));
+
+        $this->actingAs($user->fresh())->get($verificationUrl)
+            ->assertRedirect(route('bookings.index'))
+            ->assertSessionHas('success', 'Your email is already verified.');
     }
 
     public function test_email_is_not_verified_with_invalid_hash(): void
