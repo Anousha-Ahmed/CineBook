@@ -19,6 +19,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\WebhookController;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -137,5 +138,21 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/failed-jobs/{uuid}/retry', [AdminFailedJobController::class, 'retry'])->name('failed-jobs.retry');
     Route::delete('/failed-jobs/{uuid}', [AdminFailedJobController::class, 'destroy'])->name('failed-jobs.destroy');
 });
+
+/*
+| Infrastructure
+| Free hosts have no cron service, so an external cron pings this token-guarded
+| endpoint to expire unpaid bookings and stale holds.
+*/
+Route::get('/cron/expire/{token}', function (string $token) {
+    abort_unless(
+        config('services.cron.token') && hash_equals((string) config('services.cron.token'), $token),
+        404
+    );
+
+    Artisan::call('bookings:expire');
+
+    return response(Artisan::output() ?: 'ok')->header('Content-Type', 'text/plain');
+})->name('cron.expire');
 
 require __DIR__.'/auth.php';

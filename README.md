@@ -120,6 +120,39 @@ Mail and refund jobs make 4 attempts (first try plus 3 retries, backed off 60, 3
 * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
 ```
 
+## Deploy for free (Render + Neon)
+
+`Dockerfile` and `docker/entrypoint.sh` are included, so Render builds and runs the app without extra setup. Neon provides a free Postgres database (1 GB).
+
+1. **Neon**: create a project and copy the connection details (host, database, user, password).
+2. **Render**: New → Web Service → connect this repository → Language **Docker** → Instance type **Free**.
+3. **Environment variables**:
+
+   | Key | Value |
+   | --- | --- |
+   | `APP_ENV` | `production` |
+   | `APP_DEBUG` | `false` |
+   | `APP_KEY` | `php artisan key:generate --show` output |
+   | `APP_URL` | `https://<service>.onrender.com` |
+   | `LOG_CHANNEL` | `stderr` |
+   | `DB_CONNECTION` | `pgsql` |
+   | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Neon values |
+   | `DB_SSLMODE` | `require` |
+   | `SESSION_DRIVER` | `database` |
+   | `CACHE_STORE` | `database` |
+   | `QUEUE_CONNECTION` | `sync` |
+   | `MAIL_MAILER` | `log` |
+   | `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET` | Stripe test keys |
+   | `PAYMENT_GATEWAY` | `stripe` |
+   | `CRON_TOKEN` | any long random string |
+   | `RUN_SEED` | `true` for the first deploy only |
+
+4. The container runs `migrate` on every boot. The first deploy with `RUN_SEED=true` creates the demo accounts and showtimes; set it to `false` afterwards.
+5. **Cron**: free services have no scheduler. Add a job on cron-job.org that opens `https://<service>.onrender.com/cron/expire/<CRON_TOKEN>` every 5 minutes.
+6. **Stripe webhook**: in the Stripe dashboard add an endpoint for `https://<service>.onrender.com/stripe/webhook`, select the checkout events, and copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+Free-plan notes: the service sleeps after 15 minutes without traffic, so the first request can take about a minute; admin-uploaded posters live on ephemeral disk and disappear on redeploy (seeded artwork is inside the repository); queued mail is sent inline because `QUEUE_CONNECTION=sync`.
+
 ## Stripe sandbox
 
 1. Put the test keys in `.env` and set `PAYMENT_GATEWAY=stripe`.
